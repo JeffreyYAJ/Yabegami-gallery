@@ -582,7 +582,7 @@ class Petal {
     const wy = windY * windStrength * this.depth;
     // Velocity update
     this.vx += (wx + swayX*0.08 - this.vx)*0.05;
-    this.vy += (fallSpeed * 0.012 + wy - this.vy)*0.03;
+    this.vy += (fallSpeed * 0.25 + wy - this.vy)*0.03;
     this.vy = Math.max(0.05, Math.min(this.vy, 4.0));
     this.x += this.vx + swayX*0.25;
     this.y += this.vy;
