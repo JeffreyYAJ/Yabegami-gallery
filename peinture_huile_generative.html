@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Peinture à l'Huile Générative</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1008; overflow: hidden; width: 100vw; height: 100vh; }
+  canvas { display: block; }
+  #ui {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: rgba(0,0,0,0.55);
+    border-radius: 30px;
+    padding: 8px 18px;
+    font-family: Georgia, serif;
+    color: #e8d8b0;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    user-select: none;
+  }
+  #ui span { opacity: 0.7; }
+  .btn {
+    background: rgba(255,220,120,0.15);
+    border: 1px solid rgba(255,220,120,0.3);
+    color: #e8d8b0;
+    border-radius: 20px;
+    padding: 4px 14px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: Georgia, serif;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: rgba(255,220,120,0.3); }
+  #scene-name {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: Georgia, serif;
+    color: rgba(240,220,160,0.6);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="scene-name">Champ de blé au crépuscule</div>
+<div id="ui">
+  <span>scène :</span>
+  <button class="btn" onclick="changeScene(0)">Champ de blé</button>
+  <button class="btn" onclick="changeScene(1)">Nuit étoilée</button>
+  <button class="btn" onclick="changeScene(2)">Nature morte</button>
+  <button class="btn" onclick="changeScene(3)">Bord de mer</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', () => { resize(); initScene(); });
+
+const scenes = [
+  {
+    name: "Champ de blé au crépuscule",
+    bg: () => {
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#e07b3a');
+      g.addColorStop(0.45, '#f5c66e');
+      g.addColorStop(0.7, '#a8c060');
+      g.addColorStop(1, '#4a7c20');
+      return g;
+    },
+    strokes: (t) => {
+      const strokes = [];
+      for(let i=0;i<6;i++) {
+        const cx = W*(0.1+i*0.16+Math.sin(t*0.3+i)*0.05);
+        const cy = H*(0.1+Math.sin(t*0.2+i*1.3)*0.08);
+        strokes.push({ x:cx, y:cy, len:80+Math.sin(t+i)*30, angle:Math.PI*0.05+Math.sin(t*0.4+i)*0.3, w:18, colors:['#f0a850','#e87030','#f8d080'] });
+      }
+      for(let i=0;i<18;i++) {
+        const bx = W*(i/18+Math.sin(t*0.5+i)*0.02);
+        const by = H*(0.62+Math.sin(t*0.8+i*0.7)*0.04);
+        strokes.push({ x:bx, y:by, len:55+Math.sin(t*1.2+i)*15, angle:-Math.PI/2+Math.sin(t*0.6+i)*0.25, w:12, colors:['#c8a030','#e8c040','#a06820'] });
+      }
+      for(let j=0;j<8;j++) {
+        strokes.push({ x:W*0.72+Math.sin(t*0.9+j)*4, y:H*(0.32+j*0.06), len:28+Math.sin(t+j)*8, angle:-Math.PI/2+Math.sin(t*0.7+j)*0.2, w:9, colors:['#2a5a10','#3a7018','#1a3808'] });
+      }
+      for(let i=0;i<5;i++) {
+        const a = (i/5)*Math.PI*2 + t*0.2;
+        strokes.push({ x:W*0.22+Math.cos(a)*22, y:H*0.18+Math.sin(a)*14, len:40, angle:a, w:14, colors:['#fff8a0','#ffe040','#ffb820'] });
+      }
+      return strokes;
+    }
+  },
+  {
+    name: "Nuit étoilée sur le village",
+    bg: () => {
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#0a0a2e');
+      g.addColorStop(0.5, '#0e1a5e');
+      g.addColorStop(0.75, '#162060');
+      g.addColorStop(1, '#0c1a10');
+      return g;
+    },
+    strokes: (t) => {
+      const strokes = [];
+      for(let ring=0;ring<4;ring++) {
+        const r = 80+ring*55;
+        const n = 8+ring*3;
+        for(let i=0;i<n;i++) {
+          const a = (i/n)*Math.PI*2 + t*(0.15-ring*0.03);
+          strokes.push({ x:W*0.5+Math.cos(a)*r, y:H*0.3+Math.sin(a)*r*0.7, len:55-ring*4, angle:a+Math.PI/2, w:16-ring*2, colors:['#4466ee','#6688ff','#2244aa','#8899ff'] });
+        }
+      }
+      for(let i=0;i<14;i++) {
+        const sx = W*(0.1+Math.sin(i*1.7)*0.8);
+        const sy = H*(0.05+Math.sin(i*2.3)*0.4);
+        strokes.push({ x:sx, y:sy, len:8+Math.sin(t*2+i)*3, angle:t*0.5+i, w:6, colors:['#ffffff','#ffffaa','#aaccff'] });
+      }
+      for(let i=0;i<6;i++) {
+        const a = (i/6)*Math.PI*2+t*0.3;
+        strokes.push({ x:W*0.82+Math.cos(a)*18, y:H*0.12+Math.sin(a)*14, len:22, angle:a, w:9, colors:['#ffffc0','#ffee80','#e8d860'] });
+      }
+      for(let i=0;i<12;i++) {
+        const hh = 0.12+Math.abs(Math.sin(i*1.2))*0.1;
+        strokes.push({ x:W*(i/12+0.01), y:H*(0.82-hh*0.5), len:H*hh, angle:-Math.PI/2, w:14, colors:['#0a1208','#0e1a10','#060c08'] });
+      }
+      for(let j=0;j<10;j++) {
+        strokes.push({ x:W*0.35+Math.sin(t*0.8+j)*3, y:H*(0.5+j*0.05), len:22, angle:-Math.PI/2+Math.sin(t*0.6+j)*0.15, w:8, colors:['#0e2a08','#163010','#081808'] });
+      }
+      return strokes;
+    }
+  },
+  {
+    name: "Nature morte aux tournesols",
+    bg: () => {
+      const g = ctx.createLinearGradient(0,0,W*0.3,H);
+      g.addColorStop(0, '#7a4a18');
+      g.addColorStop(0.5, '#5a3410');
+      g.addColorStop(1, '#3a2008');
+      return g;
+    },
+    strokes: (t) => {
+      const strokes = [];
+      for(let i=0;i<10;i++) {
+        strokes.push({ x:W*(i/10), y:H*0.65+Math.sin(t*0.3+i)*3, len:W/9+10, angle:0.02, w:18, colors:['#8b5a20','#6a3c10','#a06830'] });
+      }
+      const vx=W*0.5, vy=H*0.6;
+      for(let i=0;i<12;i++) {
+        const a = (i/12)*Math.PI*2;
+        const vr = 38+Math.sin(i*1.2)*8;
+        strokes.push({ x:vx+Math.cos(a)*vr, y:vy+Math.sin(a)*vr*0.5+i*4, len:32, angle:a+Math.PI/2+Math.sin(t*0.4+i)*0.1, w:11, colors:['#2244aa','#3355cc','#1a3388','#4466bb'] });
+      }
+      const flowers = [{x:0.35,y:0.38},{x:0.5,y:0.28},{x:0.65,y:0.36},{x:0.42,y:0.45},{x:0.58,y:0.44}];
+      flowers.forEach((f,fi) => {
+        const fx=W*f.x, fy=H*f.y;
+        for(let p=0;p<10;p++) {
+          const a=(p/10)*Math.PI*2+t*0.1+fi*0.5;
+          strokes.push({ x:fx+Math.cos(a)*22, y:fy+Math.sin(a)*22, len:30+Math.sin(t+p+fi)*6, angle:a, w:10, colors:['#e8b010','#f0c020','#c89000','#f8d050'] });
+        }
+        strokes.push({ x:fx, y:fy, len:16, angle:t*0.3+fi, w:16, colors:['#3a1a00','#5a2800','#281000'] });
+      });
+      flowers.forEach((f,fi) => {
+        for(let s=0;s<5;s++) {
+          strokes.push({ x:W*f.x+Math.sin(t*0.5+s)*3, y:H*(f.y+0.05+s*0.04), len:28, angle:-Math.PI/2+Math.sin(t*0.4+fi)*0.12, w:7, colors:['#2a6010','#3a7818','#1a4808'] });
+        }
+      });
+      return strokes;
+    }
+  },
+  {
+    name: "Bord de mer au matin",
+    bg: () => {
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#b8d8f8');
+      g.addColorStop(0.4, '#78b8f0');
+      g.addColorStop(0.58, '#d8e8f8');
+      g.addColorStop(0.62, '#2888c8');
+      g.addColorStop(0.85, '#1868a8');
+      g.addColorStop(1, '#e8d8b0');
+      return g;
+    },
+    strokes: (t) => {
+      const strokes = [];
+      for(let i=0;i<8;i++) {
+        strokes.push({ x:W*(i/8+Math.sin(t*0.2+i)*0.03), y:H*(0.1+Math.sin(t*0.15+i)*0.06), len:90, angle:0.05+Math.sin(t*0.1+i)*0.1, w:20, colors:['#b0d0f8','#c8e0ff','#90b8e8'] });
+      }
+      for(let i=0;i<5;i++) {
+        const cx=W*(0.1+i*0.2+Math.sin(t*0.08+i)*0.05);
+        const cy=H*(0.08+Math.sin(i*1.4)*0.06);
+        for(let j=0;j<4;j++) {
+          strokes.push({ x:cx+j*22-33, y:cy+Math.sin(j)*8, len:40+j*10, angle:0.1+Math.sin(t*0.2+j)*0.05, w:16, colors:['#f0f8ff','#e0eeff','#d8e8ff'] });
+        }
+      }
+      for(let row=0;row<6;row++) {
+        const wy = H*(0.58+row*0.04);
+        for(let i=0;i<12;i++) {
+          const wx = W*(i/12)+Math.sin(t*0.8+i+row)*15;
+          strokes.push({ x:wx, y:wy+Math.sin(t*0.5+i)*4, len:55, angle:Math.sin(t*0.6+i*0.5+row)*0.3, w:11, colors:['#1870b8','#2888d0','#0850a0','#40a8e0'] });
+        }
+      }
+      for(let i=0;i<16;i++) {
+        strokes.push({ x:W*(i/16)+Math.sin(t*1.2+i)*20, y:H*0.6+Math.sin(t+i*0.8)*6, len:30, angle:Math.sin(t*0.7+i)*0.4, w:7, colors:['#e8f4ff','#ffffff','#c8e8ff'] });
+      }
+      for(let i=0;i<10;i++) {
+        strokes.push({ x:W*(i/10), y:H*(0.85+Math.sin(t*0.2+i)*0.02), len:W/9+10, angle:0.01, w:20, colors:['#d8c880','#c0a860','#e8d898'] });
+      }
+      const bx=W*0.65+Math.sin(t*0.3)*12;
+      const by=H*0.52+Math.sin(t*0.4)*5;
+      for(let i=0;i<5;i++) {
+        strokes.push({ x:bx+i*8-16, y:by+Math.sin(i)*3, len:18, angle:0.1+Math.sin(t*0.3+i)*0.05, w:8, colors:['#a06020','#804010','#c07830'] });
+      }
+      strokes.push({ x:bx, y:by-20, len:35, angle:-Math.PI/2+Math.sin(t*0.3)*0.1, w:14, colors:['#f0e8d8','#e8d8c0','#ffffff'] });
+      return strokes;
+    }
+  }
+];
+
+let currentScene = 0;
+let offscreen, offCtx;
+let time = 0;
+let activeStrokes = [];
+let frame = 0;
+
+function initScene() {
+  offscreen = document.createElement('canvas');
+  offscreen.width = W; offscreen.height = H;
+  offCtx = offscreen.getContext('2d');
+  offCtx.fillStyle = scenes[currentScene].bg();
+  offCtx.fillRect(0,0,W,H);
+  for(let i=0;i<W*H*0.03;i++) {
+    const x=Math.random()*W, y=Math.random()*H;
+    offCtx.globalAlpha=0.04+Math.random()*0.06;
+    offCtx.fillStyle=`hsl(${Math.random()*60+20},${30+Math.random()*40}%,${40+Math.random()*30}%)`;
+    offCtx.fillRect(x,y,3,3);
+  }
+  offCtx.globalAlpha=1;
+  activeStrokes = [];
+  frame = 0;
+  document.getElementById('scene-name').textContent = scenes[currentScene].name;
+}
+
+function changeScene(i) { currentScene = i; initScene(); }
+
+function mixColors(c1, c2, t2) {
+  const h=s=>parseInt(s.slice(1,3),16),H2=s=>parseInt(s.slice(3,5),16),h3=s=>parseInt(s.slice(5,7),16);
+  return `rgb(${Math.round(h(c1)+(h(c2)-h(c1))*t2)},${Math.round(H2(c1)+(H2(c2)-H2(c1))*t2)},${Math.round(h3(c1)+(h3(c2)-h3(c1))*t2)})`;
+}
+
+class AnimStroke {
+  constructor(s) {
+    this.x=s.x; this.y=s.y; this.len=s.len;
+    this.angle=s.angle+(Math.random()-0.5)*0.12;
+    this.w=s.w*(0.7+Math.random()*0.6);
+    this.colors=s.colors; this.progress=0;
+    this.speed=0.04+Math.random()*0.06;
+    this.alpha=0.18+Math.random()*0.22; this.done=false;
+    this.cos=Math.cos(this.angle); this.sin=Math.sin(this.angle);
+  }
+  update() {
+    if(this.done) return;
+    this.progress+=this.speed;
+    if(this.progress>=1){this.done=true;return;}
+    const t2=this.progress;
+    const ci=Math.floor(t2*(this.colors.length-1));
+    const ct=(t2*(this.colors.length-1))%1;
+    const col=mixColors(this.colors[ci],this.colors[Math.min(ci+1,this.colors.length-1)],ct);
+    const px=this.x+this.cos*t2*this.len, py=this.y+this.sin*t2*this.len;
+    const bristles=Math.floor(this.w/2)+2;
+    ctx.lineCap='round';
+    for(let b=0;b<bristles;b++) {
+      const off=(b/bristles-0.5)*this.w;
+      ctx.beginPath();
+      ctx.globalAlpha=this.alpha*(0.6+Math.random()*0.4)*Math.sin(t2*Math.PI);
+      ctx.strokeStyle=col; ctx.lineWidth=1+Math.random()*1.5;
+      ctx.moveTo(px-this.sin*off+(Math.random()-0.5)*1.5, py+this.cos*off+(Math.random()-0.5)*1.5);
+      ctx.lineTo(px-this.sin*off+this.cos*5+(Math.random()-0.5)*2, py+this.cos*off+this.sin*5+(Math.random()-0.5)*2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  time+=0.012; frame++;
+  if(frame%3===0){ctx.globalAlpha=0.06;ctx.drawImage(offscreen,0,0);ctx.globalAlpha=1;}
+  if(frame%2===0){
+    const ss=scenes[currentScene].strokes(time);
+    for(let i=0;i<3+Math.floor(Math.random()*4);i++){
+      const s=ss[Math.floor(Math.random()*ss.length)];
+      if(s) activeStrokes.push(new AnimStroke(s));
+    }
+  }
+  activeStrokes=activeStrokes.filter(s=>!s.done);
+  for(const s of activeStrokes) s.update();
+  if(frame%40===0){offCtx.globalAlpha=0.6;offCtx.drawImage(canvas,0,0);offCtx.globalAlpha=1;offCtx.globalAlpha=0.04;offCtx.fillStyle=scenes[currentScene].bg();offCtx.fillRect(0,0,W,H);offCtx.globalAlpha=1;}
+  if(frame%90===0){const vg=ctx.createRadialGradient(W/2,H/2,H*0.3,W/2,H/2,H*0.85);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.22)');ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);}
+}
+
+initScene();
+ctx.fillStyle=scenes[currentScene].bg();
+ctx.fillRect(0,0,W,H);
+animate();
+</script>
+</body>
+</html>

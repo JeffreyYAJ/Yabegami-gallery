@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Black Hole</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; background:#000; overflow:hidden; }
+canvas { display:block; width:100%; height:100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const W = canvas.width  = window.innerWidth;
+const H = canvas.height = window.innerHeight;
+const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+
+// ── Vertex shader ─────────────────────────────────────────────────────────────
+const VS = `
+attribute vec2 a_pos;
+void main(){ gl_Position = vec4(a_pos,0.,1.); }
+`;
+
+// ── Main fragment shader ──────────────────────────────────────────────────────
+const FS = `
+precision highp float;
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_mouse_x; // 0..1
+uniform float u_mouse_y;
+
+#define PI    3.14159265359
+#define TAU   6.28318530718
+#define STEPS 80
+
+// ── Hash / noise ──────────────────────────────────────────────────────────────
+float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float hash1(float n){ return fract(sin(n)*43758.5453); }
+
+float noise(vec2 p){
+  vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.-2.*f);
+  float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+}
+float fbm(vec2 p){
+  float v=0.,a=.5;
+  for(int i=0;i<7;i++){ v+=a*noise(p); p=p*2.1+vec2(1.7,9.2); a*=.48; }
+  return v;
+}
+
+// ── Star field ────────────────────────────────────────────────────────────────
+vec3 starfield(vec2 uv){
+  vec3 col = vec3(0.);
+  // 4 layers of stars at different densities
+  for(int layer=0;layer<4;layer++){
+    float lf = float(layer);
+    vec2 grid = uv * (80. + lf*120.);
+    vec2 id   = floor(grid);
+    vec2 gv   = fract(grid)-.5;
+    float rnd = hash(id + lf*37.1);
+    float rnd2= hash(id + lf*13.7 + 5.3);
+    float rnd3= hash(id + lf*99.1 + 2.1);
+    if(rnd > .55){
+      float brightness = pow(rnd - .55, 1.5) * 2.8 / (1.+lf*.6);
+      float dist = length(gv - vec2((rnd2-.5)*.7,(rnd3-.5)*.7));
+      float star = brightness * exp(-dist*dist*180.);
+      // color: mostly white, some blue/orange tint
+      float tint = hash(id*3.1 + lf);
+      vec3 sc = tint < .3  ? vec3(.7,.85,1.)   // blue-white
+              : tint < .55 ? vec3(1.,.92,.75)  // warm
+              : tint < .75 ? vec3(1.,1.,1.)    // white
+              :              vec3(1.,.6,.3);   // orange giant
+      col += star * sc;
+    }
+  }
+  // faint nebula background
+  float neb = fbm(uv*3.2 + vec2(.4,.9)) * fbm(uv*2.1 - vec2(.3,.1));
+  col += neb * vec3(.04,.06,.12) * .8;
+  float neb2 = fbm(uv*2.7 + vec2(1.2,.3));
+  col += neb2 * neb2 * vec3(.08,.03,.05) * .5;
+  return col;
+}
+
+// ── Gravitational lensing ─────────────────────────────────────────────────────
+// Schwarzschild-inspired: deflect ray based on impact parameter
+vec2 gravitationalLens(vec2 uv, vec2 bh, float rs){
+  vec2 delta = uv - bh;
+  float r = length(delta);
+  if(r < 0.0001) return uv;
+  // deflection angle (GR approximation: alpha = 2*rs/b for b>>rs)
+  float b = r; // impact parameter
+  float deflect = 2.0 * rs / (b * (1.0 + 4.0*rs*rs/(b*b)));
+  // stronger inner deflection
+  deflect += rs*rs*rs / (b*b*b) * 0.8;
+  vec2 dir = normalize(delta);
+  return uv + dir * deflect;
+}
+
+// ── Accretion disk temperature → color ───────────────────────────────────────
+vec3 blackbody(float t){
+  // t in [0,1]: 0=cool red, 1=hot blue-white
+  t = clamp(t,0.,1.);
+  vec3 c;
+  if(t < .33){
+    c = mix(vec3(.4,.02,.0), vec3(1.,.35,.05), t*3.);
+  } else if(t < .66){
+    c = mix(vec3(1.,.35,.05), vec3(1.,.8,.4), (t-.33)*3.);
+  } else {
+    c = mix(vec3(1.,.8,.4), vec3(.95,.95,1.5), (t-.66)*3.);
+  }
+  return c;
+}
+
+// ── Accretion disk ────────────────────────────────────────────────────────────
+vec4 accretionDisk(vec2 uv, vec2 bh, float rs, float t){
+  vec2 d  = uv - bh;
+  float r = length(d);
+  float innerR = rs * 1.5;
+  float outerR = rs * 5.5;
+
+  if(r < innerR || r > outerR) return vec4(0.);
+
+  float angle = atan(d.y, d.x);
+  float norm  = (r - innerR) / (outerR - innerR); // 0=inner hot, 1=outer cool
+
+  // Relativistic Doppler shift: approaching side brighter/bluer, receding dimmer/redder
+  float doppler = sin(angle - t * .25) * .5 + .5; // t rotates slowly
+
+  float temp = (1. - norm) + doppler * .35;
+  temp = clamp(temp, 0., 1.);
+
+  // disk structure: turbulent density
+  float turb = fbm(vec2(r*8., angle*2. + t*.3)) * .5 + .5;
+  turb *= fbm(vec2(r*14. - t*.6, angle*3.)) * .5 + .5;
+
+  // edge fade
+  float edgeFade = smoothstep(0., .12, norm) * smoothstep(1., .85, norm);
+  // inner glow stronger
+  float glow = exp(-norm * 2.8) * 1.6 + .15;
+
+  vec3 col = blackbody(temp) * turb * edgeFade * glow;
+
+  // Doppler boost
+  float boost = pow(1. + (doppler-.5)*.6, 4.); // relativistic beaming
+  col *= boost;
+
+  // transparency based on density
+  float alpha = clamp(turb * edgeFade * glow * .85, 0., 1.);
+  return vec4(col, alpha);
+}
+
+// ── Photon sphere glow ────────────────────────────────────────────────────────
+vec3 photonSphere(vec2 uv, vec2 bh, float rs){
+  float r = length(uv - bh);
+  float photonR = rs * 1.5;
+  float ring = exp(-abs(r - photonR) / (rs * .06));
+  ring *= ring;
+  return ring * vec3(.9, .85, 1.) * 1.2;
+}
+
+void main(){
+  vec2 uv  = gl_FragCoord.xy / u_res;
+  // center the coordinate system, correct aspect
+  vec2 asp = vec2(u_res.x/u_res.y, 1.);
+  vec2 cuv = (uv - .5) * asp; // [-asp/2, asp/2]
+
+  float t = u_time;
+
+  // Black hole center (very slightly drifts, or mouse)
+  vec2 bh = vec2(0.); // in centered coords
+
+  // Schwarzschild radius in coord space
+  float rs = 0.055 * asp.x;
+
+  // ── 1) Gravitational lensing of background ──────────────────────────────
+  // Multi-step ray marching around BH
+  vec2 ray   = cuv;
+  vec2 rayDir= normalize(ray - bh);
+  vec3 bgCol = vec3(0.);
+
+  // Simple iterative deflection (not full geodesic but visually convincing)
+  vec2 pos = cuv;
+  float totalDist = length(pos - bh);
+
+  // Warp UV for background sampling using analytical GR deflection
+  vec2 lensedUV = cuv;
+  {
+    vec2 delta = cuv - bh;
+    float r    = length(delta);
+    float rn   = r / rs;
+
+    if(rn > 1.0){
+      // Deflection: Einstein ring formula (strong lensing)
+      float alpha = (4. * rs / r) * (1. + rs/(2.*r) + rs*rs/(r*r));
+      // The lensed position
+      vec2 dir = normalize(delta);
+      lensedUV = cuv + dir * alpha * rs * .35;
+    }
+  }
+
+  // Convert back to 0..1 UV for star sampling
+  vec2 starUV = lensedUV / asp + .5;
+  bgCol = starfield(starUV);
+
+  // ── 2) Event horizon (pure black) ──────────────────────────────────────
+  float r = length(cuv - bh);
+  float horizonMask = smoothstep(rs, rs*.82, r);
+
+  // ── 3) Photon capture — rings of lensed background ─────────────────────
+  // Secondary image (light that went half-way around)
+  vec3 ringCol = vec3(0.);
+  {
+    float rn = r / rs;
+    if(rn > 1.05 && rn < 3.5){
+      // wrap angle for photon ring at ~1.5rs
+      float ringIntensity = exp(-abs(rn - 1.5) / .18) * .7;
+      ringIntensity += exp(-abs(rn - 1.15) / .06) * .35; // inner ring
+      // sample lensed star opposite side
+      vec2 opposite = -normalize(cuv-bh) * rs * 2.1;
+      vec2 oppUV = (bh + opposite) / asp + .5;
+      ringCol = starfield(oppUV) * ringIntensity * vec3(1., .95, .88);
+    }
+  }
+
+  // ── 4) Accretion disk ──────────────────────────────────────────────────
+  vec4 disk = accretionDisk(cuv, bh, rs, t);
+
+  // ── 5) Photon sphere ──────────────────────────────────────────────────
+  vec3 photon = photonSphere(cuv, bh, rs);
+
+  // ── 6) Outer glow / corona ─────────────────────────────────────────────
+  float corona = exp(-max(r - rs*1.2, 0.) / (rs*2.5));
+  corona = corona * corona * .18;
+  vec3 coronaCol = corona * vec3(.6,.4,.2);
+
+  // ── Composite ─────────────────────────────────────────────────────────
+  vec3 col = bgCol;
+  col += ringCol;
+  col += photon;
+  col += coronaCol;
+  // accretion disk blended on top
+  col = mix(col, col + disk.rgb, disk.a * (1.-horizonMask));
+  // event horizon: black
+  col = mix(col, vec3(0.), horizonMask);
+
+  // ── Tone mapping (ACES-ish) ────────────────────────────────────────────
+  col = col * (col + .03) / (col * (col*.9 + .15) + .07);
+  // slight vignette
+  float vig = 1. - dot((uv-.5)*1.5, (uv-.5)*1.5)*.5;
+  col *= vig;
+
+  gl_FragColor = vec4(clamp(col,0.,1.),1.);
+}
+`;
+
+// ── Particle vertex shader ────────────────────────────────────────────────────
+const PART_VS = `
+attribute float a_id;
+uniform float u_time;
+uniform vec2  u_res;
+uniform float u_rs;   // schwarzschild radius in clip space
+
+void main(){
+  float id = a_id;
+  float seed = id * 137.508 + 1.618;
+
+  // Orbital parameters
+  float baseR    = u_rs * (1.6 + fract(sin(seed)       *9341.1) * 4.5);
+  float ecc      = fract(sin(seed*1.3+7.) * 5231.) * 0.38; // eccentricity
+  float inclAngle= (fract(sin(seed*2.1+3.) * 3211.) - .5) * 0.35; // tilt
+  float omega    = fract(sin(seed*3.7+1.) * 7129.) * 6.2832; // arg of pericenter
+  float phase0   = fract(sin(seed*4.1+2.) * 8831.) * 6.2832;
+
+  // Keplerian period: T ~ r^1.5 (inner orbit faster)
+  float T = pow(baseR / u_rs, 1.5) * 3.8;
+  float meanAnomaly = phase0 + (u_time / T) * 6.2832;
+
+  // Eccentric anomaly (Newton's method, 3 iter)
+  float E = meanAnomaly;
+  for(int i=0;i<3;i++) E = E - (E - ecc*sin(E) - meanAnomaly)/(1.-ecc*cos(E));
+
+  float trueAnomaly = 2.*atan(sqrt((1.+ecc)/(1.-ecc)) * tan(E*.5));
+  float r = baseR * (1. - ecc*ecc) / (1. + ecc*cos(trueAnomaly));
+  float angle = trueAnomaly + omega;
+
+  // 3D -> 2D with inclination
+  float x3 = r * cos(angle);
+  float y3 = r * sin(angle);
+  // rotate around x axis by inclAngle
+  float x2 = x3;
+  float y2 = y3 * cos(inclAngle);
+
+  // map to clip space
+  vec2 asp = vec2(u_res.y/u_res.x, 1.);
+  vec2 pos = vec2(x2, y2) * asp * 2.0;
+
+  gl_Position = vec4(pos, 0., 1.);
+
+  // size: smaller when far, bigger when close + fast (pericenter)
+  float speed = sqrt((1.+ecc*cos(trueAnomaly))/(1.-ecc*ecc));
+  float psize = mix(1.2, 3.5, clamp(speed-1., 0., 1.)) * (1. - clamp((r/u_rs - 1.5)/6., 0., 1.)*.6);
+  gl_PointSize = clamp(psize * (u_res.y/800.), .8, 4.5);
+}
+`;
+
+const PART_FS = `
+precision highp float;
+uniform float u_time;
+void main(){
+  vec2 pc = gl_PointCoord - .5;
+  float d = length(pc);
+  if(d > .5) discard;
+  float alpha = (1.-d*2.) * .85;
+  // warm-to-cool color gradient based on nothing fancy
+  vec3 col = mix(vec3(1.,.65,.15), vec3(.7,.85,1.), clamp(d*2.,0.,1.));
+  gl_FragColor = vec4(col, alpha);
+}
+`;
+
+// ── Compile helpers ───────────────────────────────────────────────────────────
+function mkShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+    console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+function mkProg(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, mkShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, mkShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+    console.error(gl.getProgramInfoLog(p));
+  return p;
+}
+
+// ── Build programs ────────────────────────────────────────────────────────────
+const bgProg   = mkProg(VS, FS);
+const partProg = mkProg(PART_VS, PART_FS);
+
+// ── Fullscreen quad ───────────────────────────────────────────────────────────
+const quadBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]), gl.STATIC_DRAW);
+
+// ── Particles ─────────────────────────────────────────────────────────────────
+const N_PARTICLES = 4200;
+const ids = new Float32Array(N_PARTICLES).map((_,i)=>i);
+const partBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, partBuf);
+gl.bufferData(gl.ARRAY_BUFFER, ids, gl.STATIC_DRAW);
+
+// ── Uniforms ──────────────────────────────────────────────────────────────────
+const bgU = {
+  res:     gl.getUniformLocation(bgProg, 'u_res'),
+  time:    gl.getUniformLocation(bgProg, 'u_time'),
+  mouseX:  gl.getUniformLocation(bgProg, 'u_mouse_x'),
+  mouseY:  gl.getUniformLocation(bgProg, 'u_mouse_y'),
+};
+const partU = {
+  time: gl.getUniformLocation(partProg, 'u_time'),
+  res:  gl.getUniformLocation(partProg, 'u_res'),
+  rs:   gl.getUniformLocation(partProg, 'u_rs'),
+};
+
+// rs in "clip space" units (normalised -1..1, aspect corrected)
+// In the FS we use rs = 0.055 * asp.x (in centred coords).
+// In the VS we need same scale. asp.x = W/H.
+// centred coords go from -asp/2 to asp/2, then *2 for clip space.
+// So rs_clip = 0.055 * (W/H) / (W/H) * 2 * ... let me compute:
+// cuv = (uv-0.5)*asp   => clip = cuv * 2 * (H/W, 1) hmm
+// Easier: rs_vs = 0.055 (in "asp units"), the VS multiplies by asp*2 to get clip
+// so pass rs = 0.055 to VS and it will do * asp * 2.
+const RS_NORM = 0.055;
+
+// ── Render ────────────────────────────────────────────────────────────────────
+let t0 = performance.now();
+
+function frame(ts) {
+  const t = (ts - t0) / 1000;
+
+  // ── background / lensing pass ─────────────────────────────────────────
+  gl.useProgram(bgProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  const aPos = gl.getAttribLocation(bgProg, 'a_pos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  gl.uniform2f(bgU.res, W, H);
+  gl.uniform1f(bgU.time, t);
+  gl.uniform1f(bgU.mouseX, 0.5);
+  gl.uniform1f(bgU.mouseY, 0.5);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  // ── particle pass ─────────────────────────────────────────────────────
+  gl.useProgram(partProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, partBuf);
+  const aId = gl.getAttribLocation(partProg, 'a_id');
+  gl.enableVertexAttribArray(aId);
+  gl.vertexAttribPointer(aId, 1, gl.FLOAT, false, 0, 0);
+
+  gl.uniform1f(partU.time, t);
+  gl.uniform2f(partU.res, W, H);
+  gl.uniform1f(partU.rs, RS_NORM);
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE); // additive for glow
+  gl.drawArrays(gl.POINTS, 0, N_PARTICLES);
+  gl.disable(gl.BLEND);
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

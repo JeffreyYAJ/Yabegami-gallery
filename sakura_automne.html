@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌸 Sakura & Feuilles d'Automne</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400&family=Zen+Kaku+Gothic+New:wght@300&display=swap');
+
+  :root {
+    --mode-sakura: 1;
+    --accent: #ffb7c5;
+    --accent2: #e8829a;
+    --ui-bg: rgba(20, 8, 15, 0.72);
+    --ui-border: rgba(255, 183, 197, 0.25);
+    --ui-text: rgba(255, 220, 228, 0.9);
+  }
+  .autumn-mode {
+    --accent: #e8842a;
+    --accent2: #c04a10;
+    --ui-bg: rgba(15, 8, 4, 0.72);
+    --ui-border: rgba(232, 132, 42, 0.25);
+    --ui-text: rgba(255, 210, 170, 0.9);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+    background: #0d0a12;
+    font-family: 'Noto Serif JP', serif;
+    cursor: crosshair;
+  }
+
+  /* ── Background layer ── */
+  #bg-layer {
+    position: fixed; inset: 0;
+    background: linear-gradient(160deg, #1a0a1f 0%, #0d1a2a 60%, #0a0d0a 100%);
+    background-size: cover;
+    background-position: center;
+    transition: filter 0.6s;
+  }
+  #bg-layer::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 100%);
+    pointer-events: none;
+  }
+
+  /* ── Canvas ── */
+  canvas {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* ── Side panel ── */
+  #panel {
+    position: fixed;
+    right: 0; top: 0; bottom: 0;
+    width: 230px;
+    background: var(--ui-bg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-left: 1px solid var(--ui-border);
+    z-index: 100;
+    display: flex; flex-direction: column;
+    padding: 0;
+    transform: translateX(0);
+    transition: transform 0.4s cubic-bezier(.77,0,.18,1), background 0.5s, border-color 0.5s;
+  }
+  #panel.hidden { transform: translateX(220px); }
+
+  #panel-toggle {
+    position: fixed;
+    right: 10px; top: 50%;
+    transform: translateY(-50%);
+    z-index: 200;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border);
+    color: var(--accent);
+    width: 28px; height: 56px;
+    cursor: pointer;
+    border-radius: 6px 0 0 6px;
+    font-size: 11px;
+    writing-mode: vertical-rl;
+    letter-spacing: 2px;
+    transition: all 0.3s;
+    font-family: 'Noto Serif JP', serif;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #panel-toggle:hover { background: var(--ui-border); }
+
+  .panel-head {
+    padding: 22px 18px 14px;
+    border-bottom: 1px solid var(--ui-border);
+  }
+  .panel-head h1 {
+    font-size: 13px;
+    font-weight: 300;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .panel-head .subtitle {
+    font-size: 9px;
+    color: var(--ui-text);
+    opacity: 0.5;
+    margin-top: 4px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    letter-spacing: 1px;
+  }
+
+  .panel-body { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 18px; }
+  .panel-body::-webkit-scrollbar { width: 3px; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--ui-border); }
+
+  .ctrl-group label {
+    display: block;
+    font-size: 8px;
+    color: var(--ui-text);
+    opacity: 0.6;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    margin-bottom: 8px;
+  }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: flex; gap: 6px;
+  }
+  .mode-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--ui-border);
+    color: var(--ui-text);
+    font-size: 10px;
+    padding: 8px 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-family: 'Noto Serif JP', serif;
+    transition: all 0.25s;
+    text-align: center;
+  }
+  .mode-btn:hover, .mode-btn.active {
+    background: var(--ui-border);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* Slider */
+  .slider-wrap { display: flex; align-items: center; gap: 10px; }
+  input[type=range] {
+    flex: 1; height: 3px;
+    -webkit-appearance: none;
+    background: var(--ui-border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 6px var(--accent);
+  }
+  .slider-val {
+    font-size: 10px;
+    color: var(--accent);
+    min-width: 28px;
+    text-align: right;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+  }
+
+  /* Wind indicator */
+  #wind-viz {
+    height: 56px;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid var(--ui-border);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  #wind-arrow {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    transition: transform 0.4s ease;
+  }
+  #wind-label {
+    position: absolute; bottom: 5px; right: 8px;
+    font-size: 8px; color: var(--ui-text); opacity: 0.5;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    letter-spacing: 1px;
+  }
+
+  /* Background upload */
+  #bg-upload-area {
+    border: 1.5px dashed var(--ui-border);
+    border-radius: 6px;
+    padding: 14px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    position: relative;
+  }
+  #bg-upload-area:hover { border-color: var(--accent); background: rgba(255,183,197,0.04); }
+  #bg-upload-area .upload-icon { font-size: 20px; margin-bottom: 6px; }
+  #bg-upload-area p { font-size: 8px; color: var(--ui-text); opacity: 0.6; letter-spacing: 1px; font-family: 'Zen Kaku Gothic New', sans-serif; line-height: 1.6; }
+  #bg-upload-area input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  #bg-thumb {
+    width: 100%; height: 60px; object-fit: cover;
+    border-radius: 4px; margin-top: 8px;
+    display: none; border: 1px solid var(--ui-border);
+  }
+  #bg-clear {
+    display: none; width: 100%; margin-top: 6px;
+    background: transparent; border: 1px solid var(--ui-border);
+    color: var(--ui-text); font-size: 8px; padding: 5px;
+    cursor: pointer; border-radius: 3px; font-family: 'Zen Kaku Gothic New', sans-serif;
+    letter-spacing: 1px;
+  }
+  #bg-clear:hover { border-color: var(--accent2); color: var(--accent); }
+
+  /* Stats */
+  .stats-row {
+    display: flex; justify-content: space-between;
+    font-size: 8px; color: var(--ui-text); opacity: 0.5;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    letter-spacing: 1px;
+  }
+  .stats-row span:last-child { color: var(--accent); opacity: 1; }
+
+  /* Preset backgrounds */
+  .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .preset-btn {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--ui-border);
+    color: var(--ui-text);
+    font-size: 7px; padding: 7px 4px;
+    cursor: pointer; border-radius: 4px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    letter-spacing: 0.5px; text-align: center;
+    transition: all 0.2s;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Wind gust button */
+  #gust-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--ui-border);
+    color: var(--accent);
+    font-size: 9px; padding: 10px;
+    cursor: pointer; border-radius: 4px;
+    font-family: 'Noto Serif JP', serif;
+    letter-spacing: 2px;
+    transition: all 0.25s;
+  }
+  #gust-btn:hover { background: var(--ui-border); }
+  #gust-btn:active { transform: scale(0.97); }
+
+  /* Title overlay */
+  #title-overlay {
+    position: fixed;
+    left: 32px; bottom: 28px;
+    z-index: 50;
+    pointer-events: none;
+  }
+  #title-overlay .main-title {
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 300;
+    color: rgba(255,255,255,0.12);
+    letter-spacing: 8px;
+    line-height: 1.1;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.5);
+  }
+  #title-overlay .jp-title {
+    font-size: clamp(11px, 1.5vw, 16px);
+    color: var(--accent);
+    opacity: 0.5;
+    letter-spacing: 6px;
+    margin-top: 4px;
+  }
+
+  /* Mouse wind indicator */
+  #mouse-hint {
+    position: fixed; left: 32px; top: 22px;
+    font-size: 9px; color: rgba(255,255,255,0.25);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    letter-spacing: 2px;
+    z-index: 50; pointer-events: none;
+    transition: opacity 0.5s;
+  }
+</style>
+</head>
+<body>
+
+<div id="bg-layer"></div>
+<canvas id="c"></canvas>
+
+<div id="title-overlay">
+  <div class="main-title" id="title-text">SAKURA</div>
+  <div class="jp-title" id="title-jp">桜　散る</div>
+</div>
+
+<div id="mouse-hint">✦ DÉPLACEZ LA SOURIS POUR GUIDER LE VENT</div>
+
+<button id="panel-toggle" onclick="togglePanel()">RÉGLAGES</button>
+
+<div id="panel">
+  <div class="panel-head">
+    <h1>Pétales</h1>
+    <div class="subtitle">Vent procédural</div>
+  </div>
+  <div class="panel-body">
+
+    <!-- Mode -->
+    <div class="ctrl-group">
+      <label>Mode</label>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="btn-sakura" onclick="setMode('sakura')">🌸 Sakura</button>
+        <button class="mode-btn" id="btn-autumn" onclick="setMode('autumn')">🍂 Automne</button>
+      </div>
+    </div>
+
+    <!-- Wind indicator -->
+    <div class="ctrl-group">
+      <label>Vent actuel</label>
+      <div id="wind-viz">
+        <div id="wind-arrow">🌸</div>
+        <div id="wind-label">CALME</div>
+      </div>
+    </div>
+
+    <!-- Density -->
+    <div class="ctrl-group">
+      <label>Densité</label>
+      <div class="slider-wrap">
+        <input type="range" id="sl-density" min="20" max="300" value="120" oninput="updateDensity(this.value)">
+        <span class="slider-val" id="val-density">120</span>
+      </div>
+    </div>
+
+    <!-- Wind strength -->
+    <div class="ctrl-group">
+      <label>Force du vent</label>
+      <div class="slider-wrap">
+        <input type="range" id="sl-wind" min="0" max="100" value="40" oninput="updateWind(this.value)">
+        <span class="slider-val" id="val-wind">40</span>
+      </div>
+    </div>
+
+    <!-- Fall speed -->
+    <div class="ctrl-group">
+      <label>Vitesse de chute</label>
+      <div class="slider-wrap">
+        <input type="range" id="sl-speed" min="20" max="100" value="50" oninput="updateSpeed(this.value)">
+        <span class="slider-val" id="val-speed">50</span>
+      </div>
+    </div>
+
+    <!-- Opacity -->
+    <div class="ctrl-group">
+      <label>Opacité fond</label>
+      <div class="slider-wrap">
+        <input type="range" id="sl-opacity" min="0" max="100" value="85" oninput="updateBgOpacity(this.value)">
+        <span class="slider-val" id="val-opacity">85%</span>
+      </div>
+    </div>
+
+    <!-- Gust -->
+    <div class="ctrl-group">
+      <button id="gust-btn" onclick="triggerGust()">💨 RAFALE DE VENT</button>
+    </div>
+
+    <!-- Background -->
+    <div class="ctrl-group">
+      <label>Fond personnalisé</label>
+      <div id="bg-upload-area">
+        <div class="upload-icon">🖼</div>
+        <p>Glissez une image<br>ou cliquez pour choisir</p>
+        <input type="file" accept="image/*" onchange="loadBg(event)">
+        <img id="bg-thumb" alt="fond">
+      </div>
+      <button id="bg-clear" onclick="clearBg()">✕ SUPPRIMER L'IMAGE</button>
+    </div>
+
+    <!-- Preset backgrounds -->
+    <div class="ctrl-group">
+      <label>Fonds prédéfinis</label>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPresetBg('night-forest')">🌲 Forêt nuit</button>
+        <button class="preset-btn" onclick="setPresetBg('temple')">⛩ Temple</button>
+        <button class="preset-btn" onclick="setPresetBg('mountain')">🏔 Montagne</button>
+        <button class="preset-btn" onclick="setPresetBg('minimal')">◻ Minimal</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="ctrl-group">
+      <label>Stats</label>
+      <div class="stats-row"><span>Pétales actifs</span><span id="stat-count">0</span></div>
+      <div style="margin-top:5px"></div>
+      <div class="stats-row"><span>FPS</span><span id="stat-fps">60</span></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG & STATE
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let mode = 'sakura'; // 'sakura' | 'autumn'
+let petals = [];
+let targetCount = 120;
+let windStrength = 0.40;
+let fallSpeed = 0.50;
+let bgOpacity = 0.85;
+let panelOpen = true;
+
+// Wind system
+let wind = { x: 0.4, y: 0.0, noise: 0 };
+let windTarget = { x: 0.6, y: 0.05 };
+let windTimer = 0;
+let windChangeDuration = 200 + Math.random()*300;
+let gustActive = false;
+let gustTimer = 0;
+
+// Mouse influence
+let mouse = { x: -1, y: -1, active: false };
+let mouseTimer = 0;
+
+// Noise helper (simple Perlin-like)
+function noise(x, y=0) {
+  const X=Math.floor(x)&255, Y=Math.floor(y)&255;
+  return (Math.sin(X*127.1+Y*311.7)*43758.5453)%1;
+}
+function smoothNoise(x, t=0) {
+  return Math.sin(x*0.7+t*0.5)*0.5 + Math.sin(x*1.3+t*0.3)*0.3 + Math.sin(x*2.1+t*0.7)*0.2;
+}
+
+// ═══════════════════════════════════════════
+// PETAL SHAPES
+// ═══════════════════════════════════════════
+const sakuraPalette = [
+  ['#ffb7c5','#ff9ab5'],['#ffc8d4','#ffaabb'],['#ffe0e8','#ffb7c5'],
+  ['#ff8fab','#ff6b8a'],['#ffd6e0','#fbb0c0'],['#ffffff','#ffd0dc']
+];
+const autumnPalette = [
+  ['#e84a10','#c03000'],['#f07020','#d04800'],['#f0a020','#c07800'],
+  ['#c84040','#a02020'],['#d06010','#a04000'],['#f8c040','#d09020'],
+  ['#804020','#602000'],['#e86030','#c04010']
+];
+
+function drawSakuraPetal(ctx, size, color1, color2, alpha) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color1;
+  ctx.beginPath();
+  // Heart-like petal shape
+  ctx.moveTo(0, -size*0.5);
+  ctx.bezierCurveTo(size*0.8, -size*1.2, size*1.4, size*0.3, 0, size*0.9);
+  ctx.bezierCurveTo(-size*1.4, size*0.3, -size*0.8, -size*1.2, 0, -size*0.5);
+  ctx.fill();
+  // Vein
+  ctx.strokeStyle = color2;
+  ctx.lineWidth = 0.5;
+  ctx.globalAlpha = alpha*0.4;
+  ctx.beginPath();
+  ctx.moveTo(0,-size*0.4);
+  ctx.quadraticCurveTo(size*0.1, size*0.2, 0, size*0.8);
+  ctx.stroke();
+  // Center highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.globalAlpha = alpha*0.5;
+  ctx.beginPath();
+  ctx.ellipse(-size*0.15, -size*0.1, size*0.25, size*0.15, -0.5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawAutumnLeaf(ctx, size, color1, color2, alpha, variant=0) {
+  ctx.globalAlpha = alpha;
+  // Several leaf shapes based on variant
+  if(variant % 3 === 0) {
+    // Maple-ish
+    ctx.fillStyle = color1;
+    ctx.beginPath();
+    ctx.moveTo(0,size*0.9);
+    const pts=7, r1=size, r2=size*0.45;
+    for(let i=0;i<pts*2;i++){
+      const a=(i/pts/2)*Math.PI*2-Math.PI/2;
+      const r=i%2===0?r1:r2;
+      if(i===0) ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r);
+      else ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+    }
+    ctx.closePath();
+    ctx.fill();
+  } else if(variant % 3 === 1) {
+    // Oak-ish
+    ctx.fillStyle = color1;
+    ctx.beginPath();
+    ctx.moveTo(0, size);
+    ctx.bezierCurveTo(size*0.8, size*0.6, size*1.1, -size*0.2, size*0.4, -size*0.8);
+    ctx.bezierCurveTo(size*0.7, -size*1.0, size*0.1, -size*1.2, 0, -size);
+    ctx.bezierCurveTo(-size*0.1, -size*1.2, -size*0.7, -size*1.0, -size*0.4, -size*0.8);
+    ctx.bezierCurveTo(-size*1.1, -size*0.2, -size*0.8, size*0.6, 0, size);
+    ctx.fill();
+  } else {
+    // Simple oval leaf
+    ctx.fillStyle = color1;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size*0.55, size, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // Vein
+  ctx.strokeStyle = color2;
+  ctx.lineWidth = 0.7;
+  ctx.globalAlpha = alpha*0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, size*0.8);
+  ctx.lineTo(0, -size*0.8);
+  for(let v=1;v<=3;v++){
+    const vy=-size*0.3+v*size*0.25;
+    ctx.moveTo(0,vy);
+    ctx.lineTo(size*0.5, vy-size*0.15);
+    ctx.moveTo(0,vy);
+    ctx.lineTo(-size*0.5, vy-size*0.15);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// ═══════════════════════════════════════════
+// PETAL CLASS
+// ═══════════════════════════════════════════
+class Petal {
+  constructor(fromTop=false) {
+    this.reset(fromTop);
+  }
+  reset(fromTop=false) {
+    this.x = Math.random()*W;
+    this.y = fromTop ? -20 - Math.random()*H*0.5 : Math.random()*H;
+    this.vx = 0;
+    this.vy = 0.3 + Math.random()*0.4;
+    this.rot = Math.random()*Math.PI*2;
+    this.rotV = (Math.random()-0.5)*0.04;
+    this.size = mode==='sakura' ? 4+Math.random()*7 : 6+Math.random()*11;
+    const pal = mode==='sakura' ? sakuraPalette : autumnPalette;
+    const pick = pal[Math.floor(Math.random()*pal.length)];
+    this.c1 = pick[0]; this.c2 = pick[1];
+    this.alpha = 0.5+Math.random()*0.5;
+    this.phase = Math.random()*Math.PI*2;
+    this.sway = 0.5+Math.random()*1.5;
+    this.swaySpeed = 0.01+Math.random()*0.025;
+    this.variant = Math.floor(Math.random()*3);
+    this.depth = 0.5+Math.random()*0.5; // parallax depth
+    this.wobble = 0;
+    this.wobbleDir = 1;
+    this.alive = true;
+  }
+  update(windX, windY, frame) {
+    // Sway oscillation
+    const swayX = Math.sin(frame*this.swaySpeed + this.phase)*this.sway;
+    // Wind influence (weighted by depth)
+    const wx = windX * windStrength * this.depth * 2;
+    const wy = windY * windStrength * this.depth;
+    // Velocity update
+    this.vx += (wx + swayX*0.08 - this.vx)*0.05;
+    this.vy += (fallSpeed * 0.012 + wy - this.vy)*0.03;
+    this.vy = Math.max(0.05, Math.min(this.vy, 4.0));
+    this.x += this.vx + swayX*0.25;
+    this.y += this.vy;
+    // Rotation influenced by horizontal speed
+    this.rotV += (this.vx*0.01 - this.rotV)*0.08;
+    this.rot += this.rotV;
+    // Wobble (flutter)
+    this.wobble += 0.08*this.wobbleDir;
+    if(Math.abs(this.wobble)>0.4) this.wobbleDir*=-1;
+    // Wrap horizontal
+    if(this.x < -50) this.x = W+50;
+    if(this.x > W+50) this.x = -50;
+    // Reset if off bottom
+    if(this.y > H+80) { this.reset(true); }
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    ctx.scale(1+this.wobble*0.05, 1);
+    if(mode==='sakura') {
+      drawSakuraPetal(ctx, this.size, this.c1, this.c2, this.alpha);
+    } else {
+      drawAutumnLeaf(ctx, this.size, this.c1, this.c2, this.alpha, this.variant);
+    }
+    ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════
+// WIND SYSTEM
+// ═══════════════════════════════════════════
+let frame = 0;
+let lastTime = performance.now();
+let fps = 60;
+
+function updateWind() {
+  windTimer++;
+  if(windTimer > windChangeDuration) {
+    windTimer = 0;
+    windChangeDuration = 150+Math.random()*400;
+    // New wind direction target
+    const angle = Math.random()*Math.PI*1.2 - Math.PI*0.6; // mostly rightward
+    const strength = 0.3+Math.random()*1.2;
+    windTarget.x = Math.cos(angle)*strength;
+    windTarget.y = Math.sin(angle)*strength*0.3;
+  }
+  // Mouse influence
+  if(mouse.active && mouseTimer > 0) {
+    mouseTimer--;
+    const mx = (mouse.x/W)*2-1;
+    const my = (mouse.y/H)*2-1;
+    windTarget.x += (mx*1.5 - windTarget.x)*0.03;
+    windTarget.y += (my*0.5 - windTarget.y)*0.02;
+  }
+  // Gust
+  if(gustActive) {
+    gustTimer--;
+    wind.x += (windTarget.x*3 - wind.x)*0.12;
+    wind.y += (windTarget.y*2 - wind.y)*0.08;
+    if(gustTimer<=0){ gustActive=false; }
+  } else {
+    // Smooth approach to target
+    wind.x += (windTarget.x - wind.x)*0.008;
+    wind.y += (windTarget.y - wind.y)*0.006;
+  }
+  // Add turbulence
+  const noiseT = frame*0.003;
+  wind.x += smoothNoise(frame*0.005, noiseT)*0.04;
+  wind.y += smoothNoise(frame*0.005+10, noiseT)*0.015;
+}
+
+function updateWindUI() {
+  const angle = Math.atan2(wind.y, wind.x) * 180/Math.PI;
+  const strength = Math.sqrt(wind.x**2+wind.y**2);
+  document.getElementById('wind-arrow').style.transform = `rotate(${angle}deg)`;
+  document.getElementById('wind-label').textContent = strength<0.2?'CALME':strength<0.7?'BRISE':strength<1.5?'VENT':'TEMPÊTE';
+  // Color the arrow
+  document.getElementById('wind-arrow').textContent = mode==='sakura'?'🌸':'🍂';
+}
+
+// ═══════════════════════════════════════════
+// BACKGROUND GRADIENT (animated)
+// ═══════════════════════════════════════════
+function drawBgGradient() {
+  const bg = document.getElementById('bg-layer');
+  if(!bg.style.backgroundImage || bg.style.backgroundImage==='none' || !bg._hasImage) {
+    // Animated gradient if no image
+    if(mode==='sakura') {
+      bg.style.background = `linear-gradient(160deg,
+        hsl(${300+Math.sin(frame*0.002)*10},30%,${10+Math.sin(frame*0.003)*3}%) 0%,
+        hsl(${220+Math.sin(frame*0.002)*15},25%,${8+Math.sin(frame*0.004)*2}%) 55%,
+        hsl(${280+Math.sin(frame*0.003)*8},20%,${6+Math.sin(frame*0.002)*2}%) 100%)`;
+    } else {
+      bg.style.background = `linear-gradient(160deg,
+        hsl(${25+Math.sin(frame*0.002)*8},35%,${8+Math.sin(frame*0.003)*2}%) 0%,
+        hsl(${15+Math.sin(frame*0.002)*5},25%,${6+Math.sin(frame*0.004)*2}%) 55%,
+        hsl(${35+Math.sin(frame*0.003)*10},20%,${5+Math.sin(frame*0.002)*2}%) 100%)`;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+// PARTICLE / DEPTH FOG
+// ═══════════════════════════════════════════
+function drawFog() {
+  // Subtle depth fog at bottom
+  const grad = ctx.createLinearGradient(0, H*0.7, 0, H);
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, mode==='sakura'?'rgba(30,10,20,0.35)':'rgba(20,10,5,0.40)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, H*0.7, W, H*0.3);
+}
+
+// ═══════════════════════════════════════════
+// MAIN LOOP
+// ═══════════════════════════════════════════
+let fpsTimer = 0;
+let fpsCount = 0;
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = now - lastTime; lastTime = now;
+  frame++;
+  fpsCount++;
+  fpsTimer += dt;
+  if(fpsTimer > 600) {
+    fps = Math.round(fpsCount/(fpsTimer/1000));
+    fpsTimer=0; fpsCount=0;
+    document.getElementById('stat-fps').textContent=fps;
+    document.getElementById('stat-count').textContent=petals.length;
+  }
+
+  // Update wind
+  updateWind();
+  if(frame % 30 === 0) updateWindUI();
+
+  // Maintain petal count
+  while(petals.length < targetCount) petals.push(new Petal(petals.length<targetCount*0.5));
+  while(petals.length > targetCount) petals.pop();
+
+  // Clear
+  ctx.clearRect(0,0,W,H);
+  drawBgGradient();
+  drawFog();
+
+  // Draw petals (back to front)
+  petals.sort((a,b)=>a.depth-b.depth);
+  for(const p of petals) {
+    p.update(wind.x, wind.y, frame);
+    p.draw(ctx);
+  }
+
+  // Shimmer / bloom at high petal density areas (simple glow pass)
+  if(mode==='sakura') {
+    ctx.globalCompositeOperation='screen';
+    ctx.globalAlpha=0.03;
+    ctx.fillStyle='#ffb7c5';
+    ctx.fillRect(0,0,W,H);
+    ctx.globalCompositeOperation='source-over';
+    ctx.globalAlpha=1;
+  }
+}
+
+// Init petals
+for(let i=0;i<targetCount;i++) petals.push(new Petal(false));
+requestAnimationFrame(loop);
+
+// ═══════════════════════════════════════════
+// CONTROLS
+// ═══════════════════════════════════════════
+function setMode(m) {
+  mode = m;
+  const body = document.body;
+  const panel = document.getElementById('panel');
+  if(m==='sakura') {
+    body.classList.remove('autumn-mode');
+    panel.classList.remove('autumn-mode');
+    document.getElementById('btn-sakura').classList.add('active');
+    document.getElementById('btn-autumn').classList.remove('active');
+    document.getElementById('title-text').textContent='SAKURA';
+    document.getElementById('title-jp').textContent='桜　散る';
+  } else {
+    body.classList.add('autumn-mode');
+    panel.classList.add('autumn-mode');
+    document.getElementById('btn-autumn').classList.add('active');
+    document.getElementById('btn-sakura').classList.remove('active');
+    document.getElementById('title-text').textContent='AUTOMNE';
+    document.getElementById('title-jp').textContent='秋　の　葉';
+  }
+  // Reassign colors
+  for(const p of petals) {
+    const pal = m==='sakura' ? sakuraPalette : autumnPalette;
+    const pick = pal[Math.floor(Math.random()*pal.length)];
+    p.c1=pick[0]; p.c2=pick[1];
+    p.size = m==='sakura' ? 4+Math.random()*7 : 6+Math.random()*11;
+    p.variant = Math.floor(Math.random()*3);
+  }
+}
+window.setMode = setMode;
+
+function updateDensity(v) {
+  targetCount = parseInt(v);
+  document.getElementById('val-density').textContent = v;
+}
+window.updateDensity = updateDensity;
+
+function updateWind(v) {
+  windStrength = v/100;
+  document.getElementById('val-wind').textContent = v;
+}
+window.updateWind = updateWind;
+
+function updateSpeed(v) {
+  fallSpeed = v/100;
+  document.getElementById('val-speed').textContent = v;
+}
+window.updateSpeed = updateSpeed;
+
+function updateBgOpacity(v) {
+  bgOpacity = v/100;
+  document.getElementById('val-opacity').textContent = v+'%';
+  document.getElementById('bg-layer').style.opacity = bgOpacity;
+}
+window.updateBgOpacity = updateBgOpacity;
+
+function triggerGust() {
+  gustActive = true;
+  gustTimer = 80+Math.random()*60;
+  const angle = Math.random()*Math.PI*0.8 - Math.PI*0.4;
+  const str = 2+Math.random()*3;
+  windTarget.x = Math.cos(angle)*str;
+  windTarget.y = Math.sin(angle)*str*0.3;
+}
+window.triggerGust = triggerGust;
+
+function togglePanel() {
+  panelOpen = !panelOpen;
+  document.getElementById('panel').classList.toggle('hidden', !panelOpen);
+  document.getElementById('panel-toggle').style.right = panelOpen ? '228px' : '10px';
+}
+window.togglePanel = togglePanel;
+
+// Background upload
+function loadBg(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const bg = document.getElementById('bg-layer');
+    bg.style.backgroundImage = `url(${ev.target.result})`;
+    bg.style.backgroundSize='cover';
+    bg.style.backgroundPosition='center';
+    bg._hasImage = true;
+    bg.style.background=''; // clear gradient
+    const thumb = document.getElementById('bg-thumb');
+    thumb.src = ev.target.result;
+    thumb.style.display='block';
+    document.getElementById('bg-clear').style.display='block';
+  };
+  reader.readAsDataURL(file);
+}
+window.loadBg = loadBg;
+
+function clearBg() {
+  const bg = document.getElementById('bg-layer');
+  bg.style.backgroundImage='none';
+  bg._hasImage=false;
+  document.getElementById('bg-thumb').style.display='none';
+  document.getElementById('bg-clear').style.display='none';
+}
+window.clearBg = clearBg;
+
+// Preset gradients (pure CSS, no image needed)
+const presets = {
+  'night-forest': 'linear-gradient(180deg,#020d08 0%,#04200f 40%,#061a10 70%,#030d07 100%)',
+  'temple':       'linear-gradient(170deg,#1a0a0a 0%,#2d1010 30%,#1a1015 65%,#08080a 100%)',
+  'mountain':     'linear-gradient(180deg,#080a14 0%,#101830 40%,#0a1020 70%,#040608 100%)',
+  'minimal':      'linear-gradient(180deg,#0a0a0a 0%,#111111 100%)'
+};
+function setPresetBg(name) {
+  const bg = document.getElementById('bg-layer');
+  bg.style.backgroundImage='none';
+  bg.style.background = presets[name];
+  bg._hasImage = true; // prevent auto-animation
+  document.getElementById('bg-thumb').style.display='none';
+  document.getElementById('bg-clear').style.display='none';
+}
+window.setPresetBg = setPresetBg;
+
+// Mouse wind influence
+let hintShown = true;
+document.addEventListener('mousemove', e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  mouse.active = true;
+  mouseTimer = 90;
+  if(hintShown && frame > 60) {
+    document.getElementById('mouse-hint').style.opacity='0';
+    hintShown=false;
+  }
+});
+document.addEventListener('mouseleave', () => { mouse.active=false; });
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if(e.key==='g'||e.key==='G') triggerGust();
+  if(e.key==='s'||e.key==='S') setMode('sakura');
+  if(e.key==='a'||e.key==='A') setMode('autumn');
+  if(e.key==='h'||e.key==='H') togglePanel();
+});
+</script>
+</body>
+</html>

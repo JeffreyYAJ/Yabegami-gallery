@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Human Clock</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0f12;
+  --grid: rgba(255,255,255,0.028);
+  --figure: #dde1ec;
+  --shadow: rgba(0,0,0,0.55);
+  --cyan: #00e5ff;
+  --cyan-dim: rgba(0,229,255,0.12);
+  --label: rgba(255,255,255,0.22);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:100%; height:100%;
+  background: var(--bg);
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+}
+#stage {
+  position:relative;
+  width: min(96vw, 860px);
+  aspect-ratio: 16/9;
+}
+canvas#grid-canvas {
+  position:absolute; inset:0;
+  width:100%; height:100%;
+}
+canvas#main {
+  position:absolute; inset:0;
+  width:100%; height:100%;
+}
+#hud {
+  position:absolute;
+  bottom: 4%;
+  left: 50%;
+  transform: translateX(-50%);
+  display:flex; align-items:center; gap: 18px;
+  font-family: 'DM Mono', monospace;
+  font-size: clamp(9px, 1.1vw, 13px);
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  color: var(--label);
+  text-transform: uppercase;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#hud .dot {
+  width:5px; height:5px; border-radius:50%;
+  background: var(--cyan);
+  opacity: 0.7;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:.9;transform:scale(1.4)}
+}
+#sec-bar {
+  position:absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--cyan);
+  opacity: 0.55;
+  transition: width 1s linear;
+  border-radius: 0 2px 2px 0;
+}
+#corner-tl, #corner-tr, #corner-bl, #corner-br {
+  position:absolute;
+  width:14px; height:14px;
+  border-color: rgba(0,229,255,0.3);
+  border-style:solid;
+}
+#corner-tl { top:0; left:0; border-width:1px 0 0 1px; }
+#corner-tr { top:0; right:0; border-width:1px 1px 0 0; }
+#corner-bl { bottom:0; left:0; border-width:0 0 1px 1px; }
+#corner-br { bottom:0; right:0; border-width:0 1px 1px 0; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="grid-canvas"></canvas>
+  <canvas id="main"></canvas>
+  <div id="corner-tl"></div><div id="corner-tr"></div>
+  <div id="corner-bl"></div><div id="corner-br"></div>
+  <div id="sec-bar"></div>
+  <div id="hud">
+    <span class="dot"></span>
+    <span id="hud-label">HUMAN CLOCK — AERIAL VIEW</span>
+    <span class="dot"></span>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────────────────────
+// CONFIG
+// ──────────────────────────────────────────────────────────────────────────────
+const COLS = 5;           // H H : M M
+const ROWS = 9;
+const CELL_W = 28;        // pixel grid for digit definitions
+const CELL_H = 50;
+
+// Spring physics
+const SPRING_K   = 0.062;
+const SPRING_DAMP = 0.78;
+const WANDER_SPEED = 0.0018;
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 5×9 bitmap digits  (1 = person needed)
+// ──────────────────────────────────────────────────────────────────────────────
+const D = {
+  0: [
+    [0,1,1,1,0],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [0,1,1,1,0],
+  ],
+  1: [
+    [0,0,1,0,0],
+    [0,1,1,0,0],
+    [0,0,1,0,0],
+    [0,0,1,0,0],
+    [0,0,1,0,0],
+    [0,0,1,0,0],
+    [0,0,1,0,0],
+    [0,0,1,0,0],
+    [0,1,1,1,0],
+  ],
+  2: [
+    [0,1,1,1,0],
+    [1,0,0,0,1],
+    [0,0,0,0,1],
+    [0,0,0,1,0],
+    [0,0,1,0,0],
+    [0,1,0,0,0],
+    [1,0,0,0,0],
+    [1,0,0,0,1],
+    [1,1,1,1,1],
+  ],
+  3: [
+    [1,1,1,1,1],
+    [0,0,0,0,1],
+    [0,0,0,0,1],
+    [0,0,0,1,0],
+    [0,1,1,1,0],
+    [0,0,0,1,0],
+    [0,0,0,0,1],
+    [0,0,0,0,1],
+    [1,1,1,1,1],
+  ],
+  4: [
+    [0,0,0,1,0],
+    [0,0,1,1,0],
+    [0,1,0,1,0],
+    [1,0,0,1,0],
+    [1,1,1,1,1],
+    [0,0,0,1,0],
+    [0,0,0,1,0],
+    [0,0,0,1,0],
+    [0,0,0,1,0],
+  ],
+  5: [
+    [1,1,1,1,1],
+    [1,0,0,0,0],
+    [1,0,0,0,0],
+    [1,1,1,1,0],
+    [0,0,0,0,1],
+    [0,0,0,0,1],
+    [0,0,0,0,1],
+    [1,0,0,0,1],
+    [0,1,1,1,0],
+  ],
+  6: [
+    [0,1,1,1,0],
+    [1,0,0,0,0],
+    [1,0,0,0,0],
+    [1,1,1,1,0],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [0,1,1,1,0],
+  ],
+  7: [
+    [1,1,1,1,1],
+    [0,0,0,0,1],
+    [0,0,0,1,0],
+    [0,0,1,0,0],
+    [0,0,1,0,0],
+    [0,1,0,0,0],
+    [0,1,0,0,0],
+    [0,1,0,0,0],
+    [0,1,0,0,0],
+  ],
+  8: [
+    [0,1,1,1,0],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [0,1,1,1,0],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [0,1,1,1,0],
+  ],
+  9: [
+    [0,1,1,1,0],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [0,1,1,1,1],
+    [0,0,0,0,1],
+    [0,0,0,0,1],
+    [0,0,0,1,0],
+    [0,0,1,0,0],
+    [0,1,0,0,0],
+  ],
+  ':': [
+    [0,0,0,0,0],
+    [0,0,0,0,0],
+    [0,0,1,0,0],
+    [0,0,1,0,0],
+    [0,0,0,0,0],
+    [0,0,1,0,0],
+    [0,0,1,0,0],
+    [0,0,0,0,0],
+    [0,0,0,0,0],
+  ],
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CANVAS SETUP
+// ──────────────────────────────────────────────────────────────────────────────
+const stage   = document.getElementById('stage');
+const gridCvs = document.getElementById('grid-canvas');
+const mainCvs = document.getElementById('main');
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  const W = Math.round(r.width), H = Math.round(r.height);
+  gridCvs.width = mainCvs.width  = W;
+  gridCvs.height = mainCvs.height = H;
+  drawGrid(W, H);
+  return {W, H};
+}
+
+// ── Draw static grid ──────────────────────────────────────────────────────────
+function drawGrid(W, H) {
+  const ctx = gridCvs.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const gs = 28;
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 0.5;
+  for (let x=0; x<=W; x+=gs) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y=0; y<=H; y+=gs) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// LAYOUT: compute pixel positions for each slot
+// ──────────────────────────────────────────────────────────────────────────────
+function getTimeChars() {
+  const n = new Date();
+  const h = String(n.getHours()).padStart(2,'0');
+  const m = String(n.getMinutes()).padStart(2,'0');
+  return [h[0], h[1], ':', m[0], m[1]];
+}
+
+// widths: digit=5, colon=2 (in cell units), gap=1.2
+function computeLayout(W, H) {
+  const chars = getTimeChars();
+  // cell widths in "col" units
+  const charCols = [5, 5, 2, 5, 5];
+  const gaps = 1.6;
+  const totalCols = charCols.reduce((a,b)=>a+b,0) + gaps*4;
+  const scale = Math.min(W / (totalCols * CELL_W * 1.05), H / (ROWS * CELL_H * 1.18));
+  const cw = CELL_W * scale;
+  const ch = CELL_H * scale;
+
+  let slots = []; // {x, y, charIdx}
+  let cx = (W - totalCols * cw) / 2;
+  const cy = (H - ROWS * ch) / 2;
+
+  chars.forEach((c, ci) => {
+    const bitmap = D[c] || D[0];
+    const colCount = charCols[ci];
+    for (let row=0; row<ROWS; row++) {
+      for (let col=0; col<colCount; col++) {
+        if (bitmap[row] && bitmap[row][col]) {
+          slots.push({
+            x: cx + (col + 0.5) * cw,
+            y: cy + (row + 0.5) * ch,
+            charIdx: ci
+          });
+        }
+      }
+    }
+    cx += (charCols[ci] + gaps) * cw;
+  });
+  return slots;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PERSON CLASS
+// ──────────────────────────────────────────────────────────────────────────────
+class Person {
+  constructor(x, y, id) {
+    this.id   = id;
+    this.px   = x; this.py = y;   // current position
+    this.vx   = 0; this.vy = 0;   // velocity
+    this.tx   = x; this.ty = y;   // target
+    this.wanderAngle = Math.random() * Math.PI * 2;
+    this.size = 0;                 // target size (appear/disappear)
+    this.curSize = 0;
+    this.charIdx = 0;
+    this.idle = false;
+    this.idleTimer = 0;
+    this.phase = Math.random() * Math.PI * 2; // for subtle breathing
+  }
+
+  setTarget(x, y, charIdx) {
+    this.tx = x; this.ty = y;
+    this.charIdx = charIdx;
+    this.size = 1;
+    this.idle = false;
+  }
+
+  scatter(W, H) {
+    const margin = 60;
+    this.tx = margin + Math.random() * (W - margin*2);
+    this.ty = margin + Math.random() * (H - margin*2);
+    this.size = 0.3;
+  }
+
+  update(dt) {
+    // spring toward target
+    const fx = (this.tx - this.px) * SPRING_K;
+    const fy = (this.ty - this.py) * SPRING_K;
+    this.vx = (this.vx + fx) * SPRING_DAMP;
+    this.vy = (this.vy + fy) * SPRING_DAMP;
+
+    // subtle wander when nearly settled
+    const dist = Math.hypot(this.tx-this.px, this.ty-this.py);
+    if (dist < 3) {
+      this.wanderAngle += (Math.random()-0.5)*0.18;
+      this.px += Math.cos(this.wanderAngle)*0.18;
+      this.py += Math.sin(this.wanderAngle)*0.18;
+    }
+
+    this.px += this.vx;
+    this.py += this.vy;
+
+    // size lerp
+    this.curSize += (this.size - this.curSize) * 0.07;
+
+    this.phase += 0.025;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MAIN CLOCK LOGIC
+// ──────────────────────────────────────────────────────────────────────────────
+let people = [];
+let lastMinute = -1;
+let {W, H} = resize();
+let slots = computeLayout(W, H);
+
+// accent colours per char index
+const CHAR_ACCENTS = [
+  'rgba(0,229,255,0.9)',   // H tens
+  'rgba(0,229,255,0.9)',   // H units
+  'rgba(255,255,255,0.5)', // colon
+  'rgba(0,229,255,0.9)',   // M tens
+  'rgba(0,229,255,0.9)',   // M units
+];
+
+function assignPeople() {
+  const newSlots = computeLayout(W, H);
+  slots = newSlots;
+
+  // grow / shrink pool
+  while (people.length < slots.length) {
+    // spawn at random off-screen-ish position
+    people.push(new Person(
+      Math.random()*W, Math.random()*H,
+      people.length
+    ));
+  }
+  // scatter extras
+  for (let i = slots.length; i < people.length; i++) {
+    people[i].scatter(W, H);
+    people[i].size = 0;
+  }
+  // assign targets
+  for (let i = 0; i < slots.length; i++) {
+    people[i].setTarget(slots[i].x, slots[i].y, slots[i].charIdx);
+  }
+}
+
+assignPeople();
+
+// ──────────────────────────────────────────────────────────────────────────────
+// DRAW PERSON (top-down silhouette)
+// ──────────────────────────────────────────────────────────────────────────────
+const SCALE_BASE = (() => {
+  // figure size relative to cell
+  const s = stage.getBoundingClientRect();
+  return Math.min(s.width, s.height) / 420;
+})();
+
+function drawPerson(ctx, x, y, size, charIdx, phase, vx, vy) {
+  if (size < 0.01) return;
+  const r = Math.max(1, 8 * size);
+  const bodyL = r * 2.1;
+
+  // direction from velocity
+  let angle = Math.atan2(vy || 0, vx || 0);
+  const speed = Math.hypot(vx||0, vy||0);
+  if (speed < 0.3) angle = -Math.PI/2; // facing up when idle
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle + Math.PI/2);
+
+  // shadow
+  ctx.save();
+  ctx.translate(r*0.4, r*0.6);
+  ctx.scale(1, 0.5);
+  ctx.beginPath();
+  ctx.ellipse(0, bodyL*0.1, r*1.1, bodyL*0.55, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.fill();
+  ctx.restore();
+
+  // body (teardrop)
+  ctx.beginPath();
+  ctx.ellipse(0, bodyL*0.18, r*0.72, bodyL*0.52, 0, 0, Math.PI*2);
+  ctx.fillStyle = charIdx === 2 ? 'rgba(255,255,255,0.45)' : 'rgba(220,226,240,0.92)';
+  ctx.fill();
+
+  // head
+  const headY = -bodyL * 0.38 + Math.sin(phase)*0.4;
+  ctx.beginPath();
+  ctx.arc(0, headY, r * 0.82, 0, Math.PI*2);
+  ctx.fillStyle = charIdx === 2 ? 'rgba(255,255,255,0.55)' : 'rgba(232,236,248,0.98)';
+  ctx.fill();
+
+  // accent dot (cyan cap)
+  if (charIdx !== 2) {
+    ctx.beginPath();
+    ctx.arc(0, headY, r * 0.32, 0, Math.PI*2);
+    ctx.fillStyle = CHAR_ACCENTS[charIdx] || 'rgba(0,229,255,0.9)';
+    ctx.globalAlpha = 0.7 * size;
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// TRAIL / CONNECTION LINES (very subtle)
+// ──────────────────────────────────────────────────────────────────────────────
+function drawConnections(ctx, activePeople) {
+  // only draw lines between people in same charIdx that are nearby
+  ctx.lineWidth = 0.4;
+  for (let i = 0; i < activePeople.length; i++) {
+    for (let j = i+1; j < activePeople.length; j++) {
+      const a = activePeople[i], b = activePeople[j];
+      if (a.charIdx !== b.charIdx) continue;
+      const d = Math.hypot(a.px-b.px, a.py-b.py);
+      if (d > 38) continue;
+      const alpha = (1 - d/38) * 0.09 * Math.min(a.curSize, b.curSize);
+      ctx.beginPath();
+      ctx.moveTo(a.px, a.py);
+      ctx.lineTo(b.px, b.py);
+      ctx.strokeStyle = `rgba(0,229,255,${alpha})`;
+      ctx.stroke();
+    }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// RENDER LOOP
+// ──────────────────────────────────────────────────────────────────────────────
+const ctx = mainCvs.getContext('2d');
+const secBar = document.getElementById('sec-bar');
+
+let lastTS = 0;
+function loop(ts) {
+  const dt = Math.min(ts - lastTS, 50);
+  lastTS = ts;
+
+  // check minute change
+  const now = new Date();
+  if (now.getMinutes() !== lastMinute) {
+    lastMinute = now.getMinutes();
+    assignPeople();
+  }
+
+  // update second bar
+  const sec = now.getSeconds() + now.getMilliseconds()/1000;
+  secBar.style.width = (sec / 60 * 100) + '%';
+
+  // update physics
+  people.forEach(p => p.update(dt));
+
+  // draw
+  ctx.clearRect(0, 0, W, H);
+
+  const active = people.filter((p, i) => i < slots.length);
+  const inactive = people.filter((p, i) => i >= slots.length && p.curSize > 0.05);
+
+  // connections first (under people)
+  drawConnections(ctx, active);
+
+  // inactive (wandering)
+  inactive.forEach(p => {
+    ctx.globalAlpha = p.curSize * 0.3;
+    drawPerson(ctx, p.px, p.py, p.curSize * 0.5, 2, p.phase, p.vx, p.vy);
+    ctx.globalAlpha = 1;
+  });
+
+  // active figures
+  active.forEach(p => {
+    ctx.globalAlpha = 1;
+    drawPerson(ctx, p.px, p.py, p.curSize, p.charIdx, p.phase, p.vx, p.vy);
+  });
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// RESIZE
+// ──────────────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  const r = stage.getBoundingClientRect();
+  W = Math.round(r.width); H = Math.round(r.height);
+  gridCvs.width = mainCvs.width  = W;
+  gridCvs.height = mainCvs.height = H;
+  drawGrid(W, H);
+  assignPeople();
+});
+</script>
+</body>
+</html>

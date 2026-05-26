@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L'Horloge Topographique</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0804;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Georgia', serif;
+  }
+  canvas {
+    display: block;
+    cursor: none;
+  }
+  #label {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(210, 180, 120, 0.45);
+    font-size: 11px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="label">L'Horloge Topographique</div>
+
+<script>
+// ─── WebGL setup ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const W = canvas.width  = Math.min(window.innerWidth,  900);
+const H = canvas.height = Math.min(window.innerHeight, 900);
+const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+if (!gl) { document.body.innerHTML = '<p style="color:#fff">WebGL not supported</p>'; }
+
+// ─── Shader sources ──────────────────────────────────────────────────────────
+const VS = `
+attribute vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0., 1.); }
+`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_time;
+uniform float u_transition; // 0=stable, 1=transitioning
+uniform sampler2D u_digitTex; // 512x64 texture with digit SDF
+
+// ── noise ──────────────────────────────────────────────────────────────────
+vec3 hash3(vec2 p) {
+  vec3 q = vec3(dot(p,vec2(127.1,311.7)),
+                dot(p,vec2(269.5,183.3)),
+                dot(p,vec2(419.2,371.9)));
+  return fract(sin(q)*43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f*f*(3.-2.*f);
+  float a = dot(hash3(i         ).xy, f         );
+  float b = dot(hash3(i+vec2(1,0)).xy, f-vec2(1,0));
+  float c = dot(hash3(i+vec2(0,1)).xy, f-vec2(0,1));
+  float d = dot(hash3(i+vec2(1,1)).xy, f-vec2(1,1));
+  return mix(mix(a,b,u.x), mix(c,d,u.x), u.y) * .5 + .5;
+}
+float fbm(vec2 p) {
+  float v=0., a=.5;
+  for(int i=0;i<6;i++) { v+=a*noise(p); p=p*2.1+vec2(1.7,9.2); a*=.5; }
+  return v;
+}
+
+// ── digit SDF (packed in texture) ────────────────────────────────────────
+// texture layout: 10 digits × 5 chars, each cell 512/5=102px wide, 64px tall
+// but we pass the time string as 5 chars: HH:MM  (colon is char index 10)
+// Actually we bake digit masks via the fragment shader itself using box SDFs
+// to avoid texture complexity — pure math approach.
+
+float sdfRect(vec2 p, vec2 b) {
+  vec2 d = abs(p)-b;
+  return length(max(d,0.))+min(max(d.x,d.y),0.);
+}
+
+// Segment display: returns 0=inside stroke
+// 7 segments: top, top-right, bot-right, bottom, bot-left, top-left, middle
+float seg(vec2 p, int s) {
+  float sw = .06; // stroke width
+  float h  = .42; // half-height of vertical seg
+  float hw = .22; // half-width of horiz seg
+  if(s==0) return sdfRect(p-vec2(0., .44), vec2(hw,.028))-sw; // top
+  if(s==1) return sdfRect(p-vec2( .24, .22), vec2(.028,h*.5))-sw; // top-right
+  if(s==2) return sdfRect(p-vec2( .24,-.22), vec2(.028,h*.5))-sw; // bot-right
+  if(s==3) return sdfRect(p-vec2(0.,-.44), vec2(hw,.028))-sw; // bottom
+  if(s==4) return sdfRect(p-vec2(-.24,-.22), vec2(.028,h*.5))-sw; // bot-left
+  if(s==5) return sdfRect(p-vec2(-.24, .22), vec2(.028,h*.5))-sw; // top-left
+  if(s==6) return sdfRect(p-vec2(0., 0.),   vec2(hw,.028))-sw; // middle
+  return 1.;
+}
+
+// which segments are ON for digit d (0-9) + 10=colon
+bool segOn(int d, int s) {
+  // encoding: bit field per digit
+  // segments 0-6 = top,tr,br,bot,bl,tl,mid
+  if(d== 0) return s!=6;
+  if(d== 1) return s==1||s==2;
+  if(d== 2) return s==0||s==1||s==6||s==4||s==3;
+  if(d== 3) return s==0||s==1||s==6||s==2||s==3;
+  if(d== 4) return s==5||s==6||s==1||s==2;
+  if(d== 5) return s==0||s==5||s==6||s==2||s==3;
+  if(d== 6) return s==0||s==5||s==6||s==4||s==3||s==2;
+  if(d== 7) return s==0||s==1||s==2;
+  if(d== 8) return true;
+  if(d== 9) return s==0||s==1||s==2||s==3||s==5||s==6;
+  if(d==10) return s==1||s==4; // colon dots (reuse tr/bl positions)
+  return false;
+}
+
+float digitSDF(vec2 p, int d) {
+  float m = 1.;
+  for(int s=0;s<7;s++) {
+    if(segOn(d,s)) m = min(m, seg(p,s));
+  }
+  return m;
+}
+
+// 5-char clock string: chars[0..4]  e.g. H1 H0 : M1 M0
+float clockSDF(vec2 uv, int h1, int h0, int m1, int m0, float t) {
+  // uv in [0,1], arrange 5 chars across
+  // char widths: 0.16 each, gaps 0.02, colon 0.08
+  // total = 4*0.16 + 0.08 + 5*0.02 = 0.64+0.08+0.10 = 0.82  => center
+  float ox = .09; // left margin
+  float cy = .5;
+  float cw = .16; // char width
+  float gap = .025;
+
+  float d = 1.;
+  // positions of 5 chars
+  float xs[5];
+  xs[0] = ox + cw*.5;
+  xs[1] = xs[0] + cw + gap;
+  xs[2] = xs[1] + cw*.5 + gap + .04; // colon center
+  xs[3] = xs[2] + .04 + gap + cw*.5;
+  xs[4] = xs[3] + cw + gap;
+
+  // char 0
+  vec2 p0 = (uv - vec2(xs[0], cy)) / vec2(cw*.5, .40);
+  d = min(d, digitSDF(p0, h1));
+
+  // char 1
+  vec2 p1 = (uv - vec2(xs[1], cy)) / vec2(cw*.5, .40);
+  d = min(d, digitSDF(p1, h0));
+
+  // colon
+  vec2 p2 = (uv - vec2(xs[2], cy)) / vec2(.04, .40);
+  d = min(d, digitSDF(p2, 10));
+
+  // char 3
+  vec2 p3 = (uv - vec2(xs[3], cy)) / vec2(cw*.5, .40);
+  d = min(d, digitSDF(p3, m1));
+
+  // char 4
+  vec2 p4 = (uv - vec2(xs[4], cy)) / vec2(cw*.5, .40);
+  d = min(d, digitSDF(p4, m0));
+
+  return d;
+}
+
+uniform int u_h1, u_h0, u_m1, u_m0;
+uniform int u_h1_next, u_h0_next, u_m1_next, u_m0_next;
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  vec2 asp = vec2(u_res.x/u_res.y, 1.);
+
+  // ── Base topographic field ───────────────────────────────────────────────
+  float t = u_time;
+  vec2 wuv = uv * asp * 2.8;
+
+  // slow wind drift
+  vec2 wind = vec2(cos(t*.07)*0.4, sin(t*.05)*0.2) * t * .12;
+  float base = fbm(wuv + wind);
+
+  // ── Current time SDF ────────────────────────────────────────────────────
+  float sdfCur  = clockSDF(uv, u_h1,      u_h0,      u_m1,      u_m0,      t);
+  float sdfNext = clockSDF(uv, u_h1_next, u_h0_next, u_m1_next, u_m0_next, t);
+
+  // transition blend
+  float tr = u_transition; // 0..1
+  // ease in-out
+  float trE = tr*tr*(3.-2.*tr);
+
+  float sdf = mix(sdfCur, sdfNext, trE);
+
+  // ── Valley carving ───────────────────────────────────────────────────────
+  // Inside digit strokes: push height down to create valleys
+  float strokeW = .018;
+  float valley = smoothstep(strokeW, -strokeW, sdf);
+
+  // slight turbulence on the valley edge
+  float edgeNoise = fbm(wuv * 4. + vec2(t*.3, t*.2)) * .15;
+  valley = smoothstep(.04 + edgeNoise, -.02, sdf);
+
+  // height field
+  float h = base - valley * .55;
+
+  // ── Topographic contours ────────────────────────────────────────────────
+  float contourSpacing = .055;
+  float bands = fract(h / contourSpacing);
+  float contour = smoothstep(.0, .07, bands) * smoothstep(1., .93, bands);
+  // thinner lines near valleys
+  float thinFactor = mix(.85, .93, valley);
+  contour = smoothstep(.0, .06, bands) * smoothstep(1., thinFactor, bands);
+
+  // ── Color palette — desert sand / ochre ─────────────────────────────────
+  vec3 sandDeep  = vec3(.28, .20, .10);
+  vec3 sandMid   = vec3(.55, .42, .22);
+  vec3 sandLight = vec3(.82, .68, .44);
+  vec3 sandCrest = vec3(.95, .86, .66);
+
+  vec3 sandCol = mix(sandDeep,
+                   mix(sandMid,
+                     mix(sandLight, sandCrest, smoothstep(.6,.9,h)),
+                   smoothstep(.3,.65,h)),
+                 smoothstep(.0,.3,h));
+
+  // contour lines: darker, slightly warm
+  vec3 lineCol = mix(sandDeep * .7, sandMid * .55, h);
+
+  vec3 col = mix(sandCol, lineCol, 1. - contour);
+
+  // ── Valley highlight (shadow in valley, slight light on ridge) ──────────
+  col = mix(col, sandDeep * .6, valley * .55);
+
+  // specular glint on crests
+  float glint = smoothstep(.8, 1., h) * (1.-valley) * noise(wuv*8. + vec2(t*.4,0.));
+  col += vec3(.9,.85,.65) * glint * .22;
+
+  // ── Vignette ────────────────────────────────────────────────────────────
+  vec2 vd = (uv - .5) * 2.;
+  float vig = 1. - dot(vd,vd) * .38;
+  col *= vig;
+
+  // subtle grain
+  float grain = (hash3(uv*u_res + vec2(t*100.)).x - .5) * .04;
+  col += grain;
+
+  gl_FragColor = vec4(clamp(col,0.,1.), 1.);
+}
+`;
+
+// ─── Compile shaders ────────────────────────────────────────────────────────
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+    console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+  console.error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+
+// ─── Fullscreen quad ────────────────────────────────────────────────────────
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1, 1,-1, -1,1,
+  -1, 1, 1,-1,  1,1
+]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+// ─── Uniforms ────────────────────────────────────────────────────────────────
+const U = {};
+['u_res','u_time','u_transition',
+ 'u_h1','u_h0','u_m1','u_m0',
+ 'u_h1_next','u_h0_next','u_m1_next','u_m0_next'
+].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+
+gl.uniform2f(U.u_res, W, H);
+
+// ─── Time state ──────────────────────────────────────────────────────────────
+let curH1=0,curH0=0,curM1=0,curM0=0;
+let nxtH1=0,nxtH0=0,nxtM1=0,nxtM0=0;
+let transitionStart = -9999;
+const TRANS_DUR = 3500; // ms
+
+function getDigits(d) {
+  const now = new Date();
+  const h = now.getHours(), m = now.getMinutes();
+  return { h1: Math.floor(h/10), h0: h%10, m1: Math.floor(m/10), m0: m%10 };
+}
+
+function getNextMinute(d) {
+  const now = new Date();
+  const next = new Date(now.getTime() + 60000);
+  const h = next.getHours(), m = next.getMinutes();
+  return { h1: Math.floor(h/10), h0: h%10, m1: Math.floor(m/10), m0: m%10 };
+}
+
+// init
+{
+  const d = getDigits(); const n = getNextMinute();
+  curH1=d.h1; curH0=d.h0; curM1=d.m1; curM0=d.m0;
+  nxtH1=n.h1; nxtH0=n.h0; nxtM1=n.m1; nxtM0=n.m0;
+}
+
+let lastMinute = new Date().getMinutes();
+
+// ─── Render loop ─────────────────────────────────────────────────────────────
+let t0 = performance.now();
+
+function render(ts) {
+  const t = (ts - t0) / 1000;
+
+  // check minute change
+  const now = new Date();
+  const curMin = now.getMinutes();
+  if (curMin !== lastMinute) {
+    lastMinute = curMin;
+    // commit transition
+    const d = getDigits(); const n = getNextMinute();
+    curH1=d.h1; curH0=d.h0; curM1=d.m1; curM0=d.m0;
+    nxtH1=n.h1; nxtH0=n.h0; nxtM1=n.m1; nxtM0=n.m0;
+    transitionStart = ts;
+  }
+
+  // transition amount: starts 2s before end of minute
+  const sec = now.getSeconds() + now.getMilliseconds()/1000;
+  let transition = 0;
+  const TRIGGER = 57; // start transition at 57s
+  if (sec >= TRIGGER) {
+    transition = (sec - TRIGGER) / (60 - TRIGGER);
+  }
+  // also cover the beginning of the new minute (first 0.5s)
+  if (ts - transitionStart < 500 && transitionStart > 0) {
+    transition = 1 - (ts - transitionStart) / 500;
+  }
+
+  gl.uniform1f(U.u_time, t);
+  gl.uniform1f(U.u_transition, Math.min(1, Math.max(0, transition)));
+  gl.uniform1i(U.u_h1, curH1); gl.uniform1i(U.u_h0, curH0);
+  gl.uniform1i(U.u_m1, curM1); gl.uniform1i(U.u_m0, curM0);
+  gl.uniform1i(U.u_h1_next, nxtH1); gl.uniform1i(U.u_h0_next, nxtH0);
+  gl.uniform1i(U.u_m1_next, nxtM1); gl.uniform1i(U.u_m0_next, nxtM0);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
