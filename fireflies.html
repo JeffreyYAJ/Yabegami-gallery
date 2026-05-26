@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fireflies in the Woods (Perlin Noise)</title>
+    <title>Fireflies in the Woods (Perlin Noise) with Menu</title>
     <style>
         * {
             margin: 0;
@@ -15,6 +15,7 @@
             height: 100%;
             overflow: hidden;
             background-color: #050b0a; /* Fond très sombre, vert/bleu forêt */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         canvas {
             display: block;
@@ -34,6 +35,101 @@
             pointer-events: none;
             background: radial-gradient(circle, transparent 40%, rgba(3, 8, 6, 0.85) 90%);
         }
+
+        /* --- STYLE DU MENU RETRACTABLE --- */
+        #settings-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100; /* Assure d'être au-dessus du canvas */
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        #settings-button {
+            background: rgba(10, 25, 20, 0.6);
+            border: 1px solid rgba(100, 255, 218, 0.3);
+            color: rgba(100, 255, 218, 0.8);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(100, 255, 218, 0.2);
+        }
+
+        #settings-button:hover {
+            background: rgba(100, 255, 218, 0.1);
+            transform: rotate(30deg);
+        }
+
+        #settings-panel {
+            background: rgba(5, 15, 12, 0.9);
+            border: 1px solid rgba(100, 255, 218, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            width: 220px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            /* État rétracté par défaut */
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+
+        /* Classe pour ouvrir le menu */
+        #settings-panel.open {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .panel-header {
+            color: rgba(100, 255, 218, 0.9);
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+            padding-bottom: 5px;
+        }
+
+        .color-options {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .color-btn {
+            width: 100%;
+            height: 35px;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .color-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .color-btn.active {
+            border-color: white;
+            box-shadow: 0 0 10px white;
+        }
+
+        /* Définition des couleurs des boutons */
+        .color-btn[data-color="original"] { background: radial-gradient(circle, #efff78 0%, #a0f050 100%); }
+        .color-btn[data-color="cyan"] { background: radial-gradient(circle, #78ffff 0%, #50f0c0 100%); }
+        .color-btn[data-color="blue"] { background: radial-gradient(circle, #78aaff 0%, #5050f0 100%); }
+        .color-btn[data-color="magenta"] { background: radial-gradient(circle, #ff78ea 0%, #f05050 100%); }
+
     </style>
 </head>
 <body>
@@ -41,11 +137,76 @@
     <canvas id="firefliesCanvas"></canvas>
     <div class="vignette"></div>
 
+    <div id="settings-container">
+        <button id="settings-button">⚙</button>
+        
+        <div id="settings-panel">
+            <div class="panel-header">Couleur des lucioles</div>
+            <div class="color-options">
+                <button class="color-btn active" data-color="original" title="Original (Jaune/Vert)"></button>
+                <button class="color-btn" data-color="cyan" title="Cyan Magique"></button>
+                <button class="color-btn" data-color="blue" title="Bleu Forêt"></button>
+                <button class="color-btn" data-color="magenta" title="Magenta Fée"></button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const canvas = document.getElementById('firefliesCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Ajuster le canvas à la taille de l'écran
+        // --- GESTION DU MENU ET DES COULEURS ---
+        const settingsButton = document.getElementById('settings-button');
+        const settingsPanel = document.getElementById('settings-panel');
+        const colorButtons = document.querySelectorAll('.color-btn');
+
+        // 1. Définition des thèmes de couleurs (Cœur lumineux et Halo)
+        const colorThemes = {
+            original: {
+                core: '235, 255, 120', // RGB pur sans 'rgba()'
+                halo: '160, 240, 80'
+            },
+            cyan: {
+                core: '120, 255, 255',
+                halo: '80, 240, 192'
+            },
+            blue: {
+                core: '120, 170, 255',
+                halo: '80, 80, 240'
+            },
+            magenta: {
+                core: '255, 120, 234',
+                halo: '240, 80, 80'
+            }
+        };
+
+        // Variable globale contenant le thème actif
+        let activeTheme = colorThemes.original;
+
+        // 2. Logique d'ouverture/fermeture du menu
+        settingsButton.addEventListener('click', () => {
+            settingsPanel.classList.toggle('open');
+        });
+
+        // 3. Logique de changement de couleur
+        colorButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                // Mettre à jour l'état visuel des boutons
+                document.querySelector('.color-btn.active').classList.remove('active');
+                button.classList.add('active');
+
+                // Récupérer le nom de la couleur et appliquer le thème
+                const colorName = button.getAttribute('data-color');
+                activeTheme = colorThemes[colorName];
+                
+                // Optionnel : fermer le menu après sélection
+                settingsPanel.classList.remove('open');
+            });
+        });
+
+
+        // --- LOGIQUE EXISTANTE DU CANVAS (MODIFIÉE POUR LES COULEURS) ---
+
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -53,61 +214,45 @@
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // --- IMPLÉMENTATION SIMPLIFIÉE DU BRUIT DE PERLIN / SIMPLEX ---
-        // Permet de générer des valeurs pseudo-aléatoires fluides et continues
         const Perlin = {
             rand_next: 0,
             init: function() { this.rand_next = Math.random(); },
             noise2D: function(x, y) {
-                // Fonction de vagues combinant des sinus et cosinus à différentes fréquences
-                // pour imiter un champ de vecteurs de bruit sans bibliothèque externe.
                 let t = Math.sin(x * 0.1) * Math.cos(y * 0.1) + Math.sin(x * 0.05);
                 t += Math.cos(x * 0.01 + y * 0.02);
-                return (t + 2) / 4; // Retourne une valeur entre 0 et 1
+                return (t + 2) / 4;
             }
         };
         Perlin.init();
 
-        // --- CONFIGURATION DES LUCIOLES ---
         const FIREFLY_COUNT = 120;
         const fireflies = [];
 
         class Firefly {
             constructor() {
                 this.reset();
-                // Décaler la position de départ pour éviter qu'elles ne popent toutes au même endroit
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
             }
 
             reset() {
                 this.x = Math.random() * canvas.width;
-                // Elles apparaissent souvent un peu plus bas ou sur les côtés
                 this.y = canvas.height + Math.random() * 50; 
                 this.size = Math.random() * 2.5 + 1;
                 this.speed = Math.random() * 0.4 + 0.2;
-                
-                // Vitesse de pulsation de la lumière
                 this.alphaChange = Math.random() * 0.03 + 0.01;
                 this.alpha = Math.random();
                 this.maxAlpha = Math.random() * 0.6 + 0.4;
                 this.growing = Math.random() > 0.5;
-
-                // Graines uniques pour le bruit de Perlin (évite qu'elles suivent toutes la même trajectoire)
                 this.noiseSeedX = Math.random() * 1000;
                 this.noiseSeedY = Math.random() * 1000;
             }
 
             update(time) {
-                // Utilisation du bruit pour altérer la trajectoire (effet de vague/vent doux)
-                // On passe le temps et les graines de bruit en paramètres
                 let angle = Perlin.noise2D(this.x * 0.005 + this.noiseSeedX, this.y * 0.005 + time * 0.002) * Math.PI * 4;
-                
-                // Déplacement basé sur le champ de force généré par le bruit
                 this.x += Math.cos(angle) * this.speed;
-                this.y += Math.sin(angle) * this.speed - (this.speed * 0.5); // Tendance naturelle à monter doucement
+                this.y += Math.sin(angle) * this.speed - (this.speed * 0.5); 
 
-                // Gestion du clignotement doux (Pulsation de l'opacité)
                 if (this.growing) {
                     this.alpha += this.alphaChange;
                     if (this.alpha >= this.maxAlpha) this.growing = false;
@@ -116,7 +261,6 @@
                     if (this.alpha <= 0.1) this.growing = true;
                 }
 
-                // Si la luciole sort de l'écran, on la réinitialise en bas
                 if (this.x < -20 || this.x > canvas.width + 20 || this.y < -20) {
                     this.reset();
                 }
@@ -126,11 +270,13 @@
                 ctx.save();
                 ctx.globalAlpha = this.alpha;
                 
-                // Effet de halo lumineux (Glow)
+                // Effet de halo lumineux (Glow) modifié pour utiliser activeTheme
                 let gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 5);
-                gradient.addColorStop(0, 'rgba(235, 255, 120, 1)');   // Cœur jaune/vert brillant
-                gradient.addColorStop(0.2, 'rgba(160, 240, 80, 0.8)'); // Halo intermédiaire vert
-                gradient.addColorStop(1, 'rgba(100, 200, 50, 0)');     // Extinction
+                
+                // Construction dynamique des chaînes rgba() à partir du thème actif
+                gradient.addColorStop(0, `rgba(${activeTheme.core}, 1)`);   
+                gradient.addColorStop(0.2, `rgba(${activeTheme.halo}, 0.8)`);
+                gradient.addColorStop(1, `rgba(${activeTheme.halo}, 0)`);     
 
                 ctx.fillStyle = gradient;
                 ctx.beginPath();
@@ -140,44 +286,31 @@
             }
         }
 
-        // Initialisation de la population
         for (let i = 0; i < FIREFLY_COUNT; i++) {
             fireflies.push(new Firefly());
         }
 
-        // --- DESSIN DU FOND BRUMEUX DYNAMIQUE ---
         function drawFog(time) {
-            // Premier calque de brume (gros nuages lents)
             let fog1 = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 10, canvas.width/2, canvas.height/2, canvas.width * 0.8);
             let pulse = Math.sin(time * 0.001) * 0.02;
-            
             fog1.addColorStop(0, `rgba(15, 30, 25, ${0.2 + pulse})`);
             fog1.addColorStop(0.5, 'rgba(8, 20, 15, 0.1)');
             fog1.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            
             ctx.fillStyle = fog1;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
-        // --- BOUCLE PRINCIPALE ---
         function animate(time) {
-            // Effacer l'écran en laissant une très légère traînée noire (effet de persistance)
             ctx.fillStyle = 'rgba(5, 11, 10, 0.08)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Dessiner l'ambiance brumeuse
             drawFog(time);
-
-            // Mettre à jour et dessiner les lucioles
             fireflies.forEach(firefly => {
                 firefly.update(time);
                 firefly.draw();
             });
-
             requestAnimationFrame(animate);
         }
 
-        // Lancement de l'animation
         requestAnimationFrame(animate);
     </script>
 </body>
