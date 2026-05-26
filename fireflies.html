@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fireflies in the Woods (Perlin Noise)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050b0a; /* Fond très sombre, vert/bleu forêt */
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        /* Calque CSS pour accentuer l'effet de brume et d'ambiance sombre */
+        .vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: radial-gradient(circle, transparent 40%, rgba(3, 8, 6, 0.85) 90%);
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="firefliesCanvas"></canvas>
+    <div class="vignette"></div>
+
+    <script>
+        const canvas = document.getElementById('firefliesCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Ajuster le canvas à la taille de l'écran
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- IMPLÉMENTATION SIMPLIFIÉE DU BRUIT DE PERLIN / SIMPLEX ---
+        // Permet de générer des valeurs pseudo-aléatoires fluides et continues
+        const Perlin = {
+            rand_next: 0,
+            init: function() { this.rand_next = Math.random(); },
+            noise2D: function(x, y) {
+                // Fonction de vagues combinant des sinus et cosinus à différentes fréquences
+                // pour imiter un champ de vecteurs de bruit sans bibliothèque externe.
+                let t = Math.sin(x * 0.1) * Math.cos(y * 0.1) + Math.sin(x * 0.05);
+                t += Math.cos(x * 0.01 + y * 0.02);
+                return (t + 2) / 4; // Retourne une valeur entre 0 et 1
+            }
+        };
+        Perlin.init();
+
+        // --- CONFIGURATION DES LUCIOLES ---
+        const FIREFLY_COUNT = 120;
+        const fireflies = [];
+
+        class Firefly {
+            constructor() {
+                this.reset();
+                // Décaler la position de départ pour éviter qu'elles ne popent toutes au même endroit
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+            }
+
+            reset() {
+                this.x = Math.random() * canvas.width;
+                // Elles apparaissent souvent un peu plus bas ou sur les côtés
+                this.y = canvas.height + Math.random() * 50; 
+                this.size = Math.random() * 2.5 + 1;
+                this.speed = Math.random() * 0.4 + 0.2;
+                
+                // Vitesse de pulsation de la lumière
+                this.alphaChange = Math.random() * 0.03 + 0.01;
+                this.alpha = Math.random();
+                this.maxAlpha = Math.random() * 0.6 + 0.4;
+                this.growing = Math.random() > 0.5;
+
+                // Graines uniques pour le bruit de Perlin (évite qu'elles suivent toutes la même trajectoire)
+                this.noiseSeedX = Math.random() * 1000;
+                this.noiseSeedY = Math.random() * 1000;
+            }
+
+            update(time) {
+                // Utilisation du bruit pour altérer la trajectoire (effet de vague/vent doux)
+                // On passe le temps et les graines de bruit en paramètres
+                let angle = Perlin.noise2D(this.x * 0.005 + this.noiseSeedX, this.y * 0.005 + time * 0.002) * Math.PI * 4;
+                
+                // Déplacement basé sur le champ de force généré par le bruit
+                this.x += Math.cos(angle) * this.speed;
+                this.y += Math.sin(angle) * this.speed - (this.speed * 0.5); // Tendance naturelle à monter doucement
+
+                // Gestion du clignotement doux (Pulsation de l'opacité)
+                if (this.growing) {
+                    this.alpha += this.alphaChange;
+                    if (this.alpha >= this.maxAlpha) this.growing = false;
+                } else {
+                    this.alpha -= this.alphaChange;
+                    if (this.alpha <= 0.1) this.growing = true;
+                }
+
+                // Si la luciole sort de l'écran, on la réinitialise en bas
+                if (this.x < -20 || this.x > canvas.width + 20 || this.y < -20) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                
+                // Effet de halo lumineux (Glow)
+                let gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 5);
+                gradient.addColorStop(0, 'rgba(235, 255, 120, 1)');   // Cœur jaune/vert brillant
+                gradient.addColorStop(0.2, 'rgba(160, 240, 80, 0.8)'); // Halo intermédiaire vert
+                gradient.addColorStop(1, 'rgba(100, 200, 50, 0)');     // Extinction
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Initialisation de la population
+        for (let i = 0; i < FIREFLY_COUNT; i++) {
+            fireflies.push(new Firefly());
+        }
+
+        // --- DESSIN DU FOND BRUMEUX DYNAMIQUE ---
+        function drawFog(time) {
+            // Premier calque de brume (gros nuages lents)
+            let fog1 = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 10, canvas.width/2, canvas.height/2, canvas.width * 0.8);
+            let pulse = Math.sin(time * 0.001) * 0.02;
+            
+            fog1.addColorStop(0, `rgba(15, 30, 25, ${0.2 + pulse})`);
+            fog1.addColorStop(0.5, 'rgba(8, 20, 15, 0.1)');
+            fog1.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = fog1;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // --- BOUCLE PRINCIPALE ---
+        function animate(time) {
+            // Effacer l'écran en laissant une très légère traînée noire (effet de persistance)
+            ctx.fillStyle = 'rgba(5, 11, 10, 0.08)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Dessiner l'ambiance brumeuse
+            drawFog(time);
+
+            // Mettre à jour et dessiner les lucioles
+            fireflies.forEach(firefly => {
+                firefly.update(time);
+                firefly.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        // Lancement de l'animation
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
