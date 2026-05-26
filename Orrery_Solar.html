@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orrery — Système Solaire</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Share+Tech+Mono&display=swap');
+ 
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  background:#000;
+  overflow:hidden;
+  width:100vw;height:100vh;
+  cursor:none;
+  font-family:'Cormorant Garamond',serif;
+}
+canvas{display:block;position:fixed;inset:0;}
+#cv-stars{z-index:1;}
+#cv-main{z-index:2;}
+ 
+/* Custom cursor */
+#cursor{
+  position:fixed;z-index:999;pointer-events:none;
+  width:20px;height:20px;
+  border:1px solid rgba(180,220,255,0.5);
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  transition:width .15s,height .15s,border-color .15s;
+}
+#cursor::after{
+  content:'';position:absolute;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  width:3px;height:3px;
+  background:rgba(180,220,255,0.8);
+  border-radius:50%;
+}
+ 
+/* Info panel */
+#info{
+  position:fixed;top:0;left:0;
+  padding:28px 32px;
+  z-index:50;
+  pointer-events:none;
+}
+#info h1{
+  font-size:11px;
+  font-weight:300;
+  letter-spacing:6px;
+  text-transform:uppercase;
+  color:rgba(180,220,255,0.35);
+  font-family:'Share Tech Mono',monospace;
+  margin-bottom:4px;
+}
+#info .subtitle{
+  font-size:28px;
+  font-weight:300;
+  color:rgba(255,255,255,0.08);
+  letter-spacing:2px;
+  font-style:italic;
+}
+ 
+/* Planet tooltip */
+#tooltip{
+  position:fixed;
+  z-index:200;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .3s;
+  transform:translate(18px,-50%);
+}
+#tooltip .name{
+  font-size:13px;
+  font-weight:300;
+  letter-spacing:4px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.9);
+  font-family:'Share Tech Mono',monospace;
+}
+#tooltip .detail{
+  font-size:11px;
+  color:rgba(180,220,255,0.5);
+  margin-top:3px;
+  font-family:'Share Tech Mono',monospace;
+  letter-spacing:1px;
+}
+#tooltip .line{
+  width:40px;height:1px;
+  background:rgba(180,220,255,0.3);
+  margin-bottom:6px;
+}
+ 
+/* Controls hint */
+#hint{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  font-size:9px;
+  letter-spacing:3px;
+  color:rgba(255,255,255,0.15);
+  font-family:'Share Tech Mono',monospace;
+  z-index:50;
+  text-align:center;
+  pointer-events:none;
+  transition:opacity 1s;
+}
+ 
+/* Speed control */
+#speed-ctrl{
+  position:fixed;bottom:24px;right:32px;
+  z-index:100;
+  display:flex;flex-direction:column;align-items:flex-end;gap:8px;
+}
+#speed-ctrl label{
+  font-size:8px;letter-spacing:3px;
+  color:rgba(180,220,255,0.3);
+  font-family:'Share Tech Mono',monospace;
+}
+#speed-ctrl input[type=range]{
+  width:100px;height:2px;
+  -webkit-appearance:none;
+  background:rgba(180,220,255,0.15);
+  border-radius:1px;outline:none;
+  cursor:pointer;
+}
+#speed-ctrl input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:10px;height:10px;border-radius:50%;
+  background:rgba(180,220,255,0.6);
+  cursor:pointer;
+  box-shadow:0 0 6px rgba(120,180,255,0.5);
+}
+#toggle-labels{
+  font-size:8px;letter-spacing:2px;
+  color:rgba(180,220,255,0.3);
+  font-family:'Share Tech Mono',monospace;
+  background:transparent;border:1px solid rgba(180,220,255,0.15);
+  padding:4px 10px;cursor:pointer;
+  transition:all .2s;
+}
+#toggle-labels:hover{color:rgba(180,220,255,0.7);border-color:rgba(180,220,255,0.4);}
+ 
+/* Date display */
+#date-display{
+  position:fixed;top:24px;right:32px;
+  text-align:right;z-index:50;pointer-events:none;
+}
+#date-display .year{
+  font-size:11px;letter-spacing:3px;
+  color:rgba(180,220,255,0.25);
+  font-family:'Share Tech Mono',monospace;
+}
+</style>
+</head>
+<body>
+ 
+<canvas id="cv-stars"></canvas>
+<canvas id="cv-main"></canvas>
+ 
+<div id="cursor"></div>
+ 
+<div id="info">
+  <h1>Orrery Interactif</h1>
+  <div class="subtitle">Système Solaire</div>
+</div>
+ 
+<div id="date-display">
+  <div class="year" id="sim-date">2025.001</div>
+</div>
+ 
+<div id="tooltip">
+  <div class="line"></div>
+  <div class="name" id="tip-name">Terre</div>
+  <div class="detail" id="tip-detail"></div>
+</div>
+ 
+<div id="hint">DÉPLACEZ LA SOURIS · SCROLL POUR ZOOMER · CLIC POUR SÉLECTIONNER</div>
+ 
+<div id="speed-ctrl">
+  <label>VITESSE DE SIMULATION</label>
+  <input type="range" id="sl-speed" min="0" max="100" value="30">
+  <button id="toggle-labels" onclick="toggleLabels()">ÉTIQUETTES</button>
+</div>
+ 
+<script>
+// ═══════════════════════════════════════════════════════
+// SETUP
+// ═══════════════════════════════════════════════════════
+const cvS = document.getElementById('cv-stars');
+const cvM = document.getElementById('cv-main');
+const ctxS = cvS.getContext('2d');
+const ctxM = cvM.getContext('2d');
+ 
+let W, H, cx, cy;
+function resize(){
+  W = cvS.width = cvM.width = window.innerWidth;
+  H = cvS.height = cvM.height = window.innerHeight;
+  cx = W/2; cy = H/2;
+  drawStars();
+}
+resize();
+window.addEventListener('resize', resize);
+ 
+// Mouse state
+let mouse = {x:0, y:0, px:0, py:0};
+let tilt = {x:0, y:0}; // camera tilt from mouse
+let zoom = 1.0;
+let targetZoom = 1.0;
+let hoveredPlanet = null;
+let selectedPlanet = null;
+let showLabels = true;
+let simSpeed = 0.30;
+let simTime = 0;
+let frame = 0;
+ 
+document.addEventListener('mousemove', e=>{
+  mouse.x=e.clientX; mouse.y=e.clientY;
+  const nx=(e.clientX/W)*2-1;
+  const ny=(e.clientY/H)*2-1;
+  tilt.x += (nx*0.18 - tilt.x)*0.04;
+  tilt.y += (-ny*0.12 - tilt.y)*0.04;
+  document.getElementById('cursor').style.left=e.clientX+'px';
+  document.getElementById('cursor').style.top=e.clientY+'px';
+});
+ 
+document.addEventListener('wheel', e=>{
+  targetZoom = Math.max(0.3, Math.min(3.0, targetZoom - e.deltaY*0.001));
+});
+ 
+document.addEventListener('click', e=>{
+  if(hoveredPlanet){
+    selectedPlanet = hoveredPlanet===selectedPlanet?null:hoveredPlanet;
+  }
+});
+ 
+document.getElementById('sl-speed').addEventListener('input', e=>{
+  simSpeed = e.target.value/100;
+});
+ 
+function toggleLabels(){ showLabels=!showLabels; }
+ 
+// Hide hint after a moment
+setTimeout(()=>document.getElementById('hint').style.opacity='0',4000);
+ 
+// ═══════════════════════════════════════════════════════
+// STARS BACKGROUND (static, drawn once)
+// ═══════════════════════════════════════════════════════
+function drawStars(){
+  ctxS.clearRect(0,0,W,H);
+  ctxS.fillStyle='#000005';
+  ctxS.fillRect(0,0,W,H);
+ 
+  // Milky way glow
+  const mw = ctxS.createLinearGradient(W*0.1,H*0.1,W*0.9,H*0.9);
+  mw.addColorStop(0,'rgba(30,40,80,0)');
+  mw.addColorStop(0.4,'rgba(25,35,70,0.18)');
+  mw.addColorStop(0.5,'rgba(35,50,90,0.22)');
+  mw.addColorStop(0.6,'rgba(25,35,70,0.18)');
+  mw.addColorStop(1,'rgba(30,40,80,0)');
+  ctxS.fillStyle=mw;
+  ctxS.fillRect(0,0,W,H);
+ 
+  // Stars
+  const rng=(s)=>{let x=Math.sin(s)*10000;return x-Math.floor(x);};
+  for(let i=0;i<1800;i++){
+    const x=rng(i*1.3)*W, y=rng(i*2.7)*H;
+    const r=rng(i*0.9)*0.9+0.1;
+    const bright=0.3+rng(i*3.1)*0.7;
+    const hue=rng(i*4.1);
+    const color=hue<0.3?`rgba(180,200,255,${bright})`
+               :hue<0.6?`rgba(255,255,255,${bright})`
+               :`rgba(255,230,180,${bright})`;
+    ctxS.beginPath();
+    ctxS.arc(x,y,r,0,Math.PI*2);
+    ctxS.fillStyle=color;
+    ctxS.fill();
+    // Larger star glow
+    if(r>0.7 && bright>0.7){
+      const g=ctxS.createRadialGradient(x,y,0,x,y,r*4);
+      g.addColorStop(0,`rgba(200,220,255,${bright*0.3})`);
+      g.addColorStop(1,'rgba(0,0,0,0)');
+      ctxS.beginPath();
+      ctxS.arc(x,y,r*4,0,Math.PI*2);
+      ctxS.fillStyle=g;
+      ctxS.fill();
+    }
+  }
+}
+ 
+// ═══════════════════════════════════════════════════════
+// PLANET DATA
+// ═══════════════════════════════════════════════════════
+const PLANETS = [
+  {
+    name:'Mercure', nameEn:'Mercury',
+    orbitR:72, size:3.5, period:0.241,
+    axialTilt:0.034, rotPeriod:58.6,
+    color:'#b5a99a', color2:'#8a7d70',
+    detail:'57.9M km · 0.241 an',
+    drawFn:'rocky',
+    startAngle: 1.2,
+    atmosphere:null,
+    rings:null,
+  },
+  {
+    name:'Vénus', nameEn:'Venus',
+    orbitR:108, size:6.2, period:0.615,
+    axialTilt:177.4, rotPeriod:243,
+    color:'#e8c87a', color2:'#c9a94e',
+    detail:'108.2M km · 0.615 an',
+    drawFn:'venus',
+    startAngle: 2.5,
+    atmosphere:'rgba(220,180,60,0.25)',
+    rings:null,
+  },
+  {
+    name:'Terre', nameEn:'Earth',
+    orbitR:150, size:6.8, period:1.0,
+    axialTilt:23.4, rotPeriod:1,
+    color:'#4a90d9', color2:'#2c6ab5',
+    detail:'149.6M km · 1 an',
+    drawFn:'earth',
+    startAngle: 0,
+    atmosphere:'rgba(100,170,255,0.2)',
+    rings:null,
+    moon:{
+      name:'Lune', orbitR:18, size:2.2,
+      period:0.0748, color:'#b8b0a8', color2:'#8a847e',
+      startAngle:1.0,
+    }
+  },
+  {
+    name:'Mars', nameEn:'Mars',
+    orbitR:198, size:4.8, period:1.881,
+    axialTilt:25.2, rotPeriod:1.026,
+    color:'#d4674a', color2:'#a84828',
+    detail:'227.9M km · 1.88 ans',
+    drawFn:'mars',
+    startAngle: 4.0,
+    atmosphere:'rgba(180,80,40,0.12)',
+    rings:null,
+  },
+  {
+    name:'Jupiter', nameEn:'Jupiter',
+    orbitR:268, size:18, period:11.86,
+    axialTilt:3.1, rotPeriod:0.414,
+    color:'#c8a47a', color2:'#a8784a',
+    detail:'778.5M km · 11.86 ans',
+    drawFn:'jupiter',
+    startAngle: 5.5,
+    atmosphere:'rgba(180,140,80,0.15)',
+    rings:null,
+  },
+  {
+    name:'Saturne', nameEn:'Saturn',
+    orbitR:348, size:15, period:29.46,
+    axialTilt:26.7, rotPeriod:0.444,
+    color:'#d4b880', color2:'#b89050',
+    detail:'1433M km · 29.46 ans',
+    drawFn:'saturn',
+    startAngle: 0.8,
+    atmosphere:'rgba(200,170,100,0.12)',
+    rings:{inner:1.3,outer:2.4,color:'rgba(200,170,100,0.6)',color2:'rgba(180,140,80,0.3)'},
+  },
+  {
+    name:'Uranus', nameEn:'Uranus',
+    orbitR:415, size:10, period:84.01,
+    axialTilt:97.8, rotPeriod:0.718,
+    color:'#a0d4e0', color2:'#70b0c0',
+    detail:'2872M km · 84 ans',
+    drawFn:'uranus',
+    startAngle: 3.2,
+    atmosphere:'rgba(130,200,220,0.2)',
+    rings:{inner:1.4,outer:1.7,color:'rgba(120,190,210,0.4)',color2:'rgba(100,170,190,0.15)'},
+  },
+  {
+    name:'Neptune', nameEn:'Neptune',
+    orbitR:475, size:9.5, period:164.8,
+    axialTilt:28.3, rotPeriod:0.671,
+    color:'#3060c8', color2:'#1a3a98',
+    detail:'4495M km · 164.8 ans',
+    drawFn:'neptune',
+    startAngle: 5.0,
+    atmosphere:'rgba(60,100,220,0.2)',
+    rings:null,
+  },
+];
+ 
+// Sun data
+const SUN = {size:32, color:'#fff7e0', color2:'#ffcc44', color3:'#ff8800'};
+ 
+// ═══════════════════════════════════════════════════════
+// 3D PROJECTION
+// ═══════════════════════════════════════════════════════
+// Simple isometric-ish tilt projection
+function project(x, y, z, tiltX, tiltY){
+  // Rotate around Y axis (tiltX from mouse)
+  const cosY=Math.cos(tiltX*0.5), sinY=Math.sin(tiltX*0.5);
+  const rx= x*cosY + z*sinY;
+  const rz=-x*sinY + z*cosY;
+  // Rotate around X axis (tiltY from mouse)
+  const cosX=Math.cos(tiltY*0.5+0.28), sinX=Math.sin(tiltY*0.5+0.28);
+  const ry= y*cosX - rz*sinX;
+  const rz2=y*sinX + rz*cosX;
+  return {sx: rx, sy: ry, depth: rz2};
+}
+ 
+// ═══════════════════════════════════════════════════════
+// PLANET DRAWING FUNCTIONS
+// ═══════════════════════════════════════════════════════
+function drawPlanetBase(ctx, px, py, r, c1, c2, rotAngle=0){
+  // Base sphere
+  const g=ctx.createRadialGradient(px-r*0.3,py-r*0.3,r*0.05,px,py,r*1.1);
+  g.addColorStop(0,'rgba(255,255,255,0.4)');
+  g.addColorStop(0.2,c1);
+  g.addColorStop(0.7,c2);
+  g.addColorStop(1,'rgba(0,0,0,0.8)');
+  ctx.beginPath();
+  ctx.arc(px,py,r,0,Math.PI*2);
+  ctx.fillStyle=g;
+  ctx.fill();
+}
+ 
+function drawEarth(ctx,px,py,r,rot,alpha=1){
+  ctx.globalAlpha=alpha;
+  drawPlanetBase(ctx,px,py,r,'#4a90d9','#1a5090',rot);
+  // Continents (simplified)
+  ctx.save();
+  ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.clip();
+  const landColor='rgba(60,140,60,0.85)';
+  const cont=[
+    // North America-ish
+    {dx:r*0.15+Math.cos(rot)*r*0.4,dy:-r*0.2,rw:r*0.22,rh:r*0.28},
+    // Europe-ish
+    {dx:r*0.1+Math.cos(rot+1.2)*r*0.5,dy:-r*0.1,rw:r*0.12,rh:r*0.16},
+    // Africa-ish
+    {dx:r*0.05+Math.cos(rot+1.5)*r*0.45,dy:r*0.15,rw:r*0.14,rh:r*0.28},
+    // Asia-ish
+    {dx:r*0.1+Math.cos(rot+1.8)*r*0.5,dy:-r*0.05,rw:r*0.28,rh:r*0.22},
+    // South America
+    {dx:r*0.2+Math.cos(rot+0.3)*r*0.42,dy:r*0.22,rw:r*0.1,rh:r*0.2},
+    // Australia
+    {dx:r*0.1+Math.cos(rot+2.4)*r*0.45,dy:r*0.22,rw:r*0.1,rh:r*0.1},
+  ];
+  ctx.fillStyle=landColor;
+  cont.forEach(c=>{
+    ctx.beginPath();
+    ctx.ellipse(px+c.dx,py+c.dy,c.rw,c.rh,rot*0.2,0,Math.PI*2);
+    ctx.fill();
+  });
+  // Ice caps
+  ctx.fillStyle='rgba(240,248,255,0.8)';
+  ctx.beginPath();ctx.ellipse(px,py-r*0.82,r*0.35,r*0.2,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(px,py+r*0.88,r*0.28,r*0.15,0,0,Math.PI*2);ctx.fill();
+  // Cloud wisps
+  ctx.fillStyle='rgba(255,255,255,0.35)';
+  const cw=[
+    {dx:Math.cos(rot*1.3)*r*0.3,dy:-r*0.3,w:r*0.5,h:r*0.1},
+    {dx:Math.cos(rot*0.8+1)*r*0.4,dy:r*0.1,w:r*0.4,h:r*0.08},
+    {dx:Math.cos(rot*1.1+2)*r*0.35,dy:r*0.4,w:r*0.3,h:r*0.09},
+  ];
+  cw.forEach(c=>{
+    ctx.beginPath();
+    ctx.ellipse(px+c.dx,py+c.dy,c.w,c.h,rot*0.3,0,Math.PI*2);
+    ctx.fill();
+  });
+  ctx.restore();
+  // Atmosphere glow
+  const ag=ctx.createRadialGradient(px,py,r*0.9,px,py,r*1.25);
+  ag.addColorStop(0,'rgba(100,170,255,0.25)');
+  ag.addColorStop(1,'rgba(60,120,220,0)');
+  ctx.beginPath();ctx.arc(px,py,r*1.25,0,Math.PI*2);
+  ctx.fillStyle=ag;ctx.fill();
+  ctx.globalAlpha=1;
+}
+ 
+function drawSun(ctx,px,py,r,t){
+  // Corona rays
+  for(let i=0;i<16;i++){
+    const a=(i/16)*Math.PI*2+t*0.1;
+    const r1=r*1.1, r2=r*(1.5+Math.sin(t*0.7+i)*0.3);
+    const grad=ctx.createLinearGradient(
+      px+Math.cos(a)*r1,py+Math.sin(a)*r1,
+      px+Math.cos(a)*r2,py+Math.sin(a)*r2
+    );
+    grad.addColorStop(0,'rgba(255,180,0,0.3)');
+    grad.addColorStop(1,'rgba(255,100,0,0)');
+    ctx.beginPath();
+    ctx.moveTo(px+Math.cos(a-0.15)*r1,py+Math.sin(a-0.15)*r1);
+    ctx.lineTo(px+Math.cos(a)*r2,py+Math.sin(a)*r2);
+    ctx.lineTo(px+Math.cos(a+0.15)*r1,py+Math.sin(a+0.15)*r1);
+    ctx.closePath();
+    ctx.fillStyle=grad;ctx.fill();
+  }
+  // Outer glow
+  const og=ctx.createRadialGradient(px,py,r,px,py,r*3.5);
+  og.addColorStop(0,'rgba(255,180,0,0.35)');
+  og.addColorStop(0.3,'rgba(255,120,0,0.12)');
+  og.addColorStop(0.6,'rgba(255,80,0,0.04)');
+  og.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath();ctx.arc(px,py,r*3.5,0,Math.PI*2);
+  ctx.fillStyle=og;ctx.fill();
+  // Surface
+  const sg=ctx.createRadialGradient(px-r*0.3,py-r*0.3,r*0.1,px,py,r);
+  sg.addColorStop(0,'#fffde0');
+  sg.addColorStop(0.4,'#ffe080');
+  sg.addColorStop(0.7,'#ffaa20');
+  sg.addColorStop(1,'#ff6600');
+  ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);
+  ctx.fillStyle=sg;ctx.fill();
+  // Surface granulation
+  ctx.globalAlpha=0.15;
+  for(let i=0;i<12;i++){
+    const a=(i/12)*Math.PI*2+t*0.05;
+    const dr=r*(0.5+Math.sin(t*0.3+i)*0.2);
+    ctx.beginPath();
+    ctx.arc(px+Math.cos(a)*dr,py+Math.sin(a)*dr,r*0.25,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,100,0,0.5)';ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+ 
+function drawRocky(ctx,px,py,r,c1,c2,rot,alpha=1){
+  ctx.globalAlpha=alpha;
+  drawPlanetBase(ctx,px,py,r,c1,c2,rot);
+  // Craters
+  ctx.save();
+  ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.clip();
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  [[0.3,0.2,0.15],[−0.4,0.1,0.1],[0.1,−0.3,0.12],[−0.2,−0.2,0.08]].forEach(([dx,dy,cr])=>{
+    const cdx=dx*r+Math.cos(rot)*r*0.3;
+    const cdy=dy*r;
+    ctx.beginPath();ctx.arc(px+cdx,py+cdy,cr*r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.08)';
+    ctx.beginPath();ctx.arc(px+cdx+cr*r*0.3,py+cdy-cr*r*0.3,cr*r*0.6,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.2)';
+  });
+  ctx.restore();
+  ctx.globalAlpha=1;
+}
+ 
+function drawGeneric(ctx,px,py,r,c1,c2,rot,alpha=1,bands=false){
+  ctx.globalAlpha=alpha;
+  drawPlanetBase(ctx,px,py,r,c1,c2,rot);
+  if(bands){
+    ctx.save();
+    ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.clip();
+    const bColors=['rgba(0,0,0,0.15)','rgba(255,255,255,0.08)'];
+    for(let b=0;b<5;b++){
+      const by=py-r+(b/5)*r*2;
+      ctx.fillStyle=bColors[b%2];
+      ctx.beginPath();
+      ctx.ellipse(px,by+r*0.1,r,r*0.15,0,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha=1;
+}
+ 
+// ═══════════════════════════════════════════════════════
+// ORBIT ELLIPSE (projected)
+// ═══════════════════════════════════════════════════════
+function drawOrbit(ctx,orbitR,tiltX,tiltY,alpha,selected=false){
+  const steps=120;
+  ctx.beginPath();
+  for(let i=0;i<=steps;i++){
+    const a=(i/steps)*Math.PI*2;
+    const x3=Math.cos(a)*orbitR, z3=Math.sin(a)*orbitR;
+    const p=project(x3,0,z3,tiltX,tiltY);
+    const sx=cx+p.sx, sy=cy+p.sy;
+    if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy);
+  }
+  ctx.strokeStyle=selected?`rgba(180,220,255,${alpha*0.7})`:`rgba(255,255,255,${alpha*0.12})`;
+  ctx.lineWidth=selected?1.5:0.5;
+  if(selected){ctx.setLineDash([4,4]);}else{ctx.setLineDash([]);}
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+ 
+// ═══════════════════════════════════════════════════════
+// SATURN RINGS
+// ═══════════════════════════════════════════════════════
+function drawRings(ctx,px,py,r,ring,tiltX,tiltY,alpha){
+  const steps=80;
+  // Determine ring tilt based on camera
+  const tiltAngle=tiltY*0.5+0.28;
+  const scaleY=Math.sin(tiltAngle);
+ 
+  // Draw ring as ellipse
+  for(let ri=3;ri>=0;ri--){
+    const t=ri/3;
+    const rr=r*(ring.inner+(ring.outer-ring.inner)*t);
+    ctx.beginPath();
+    ctx.ellipse(px,py,rr,Math.abs(rr*scaleY*0.6)+0.5,0,0,Math.PI*2);
+    const rc=t<0.5?ring.color:ring.color2;
+    ctx.strokeStyle=rc.replace(')',`,${alpha})`).replace('rgba','rgba');
+    ctx.lineWidth=r*0.28;
+    ctx.stroke();
+  }
+}
+ 
+// ═══════════════════════════════════════════════════════
+// LABEL DRAWING
+// ═══════════════════════════════════════════════════════
+function drawLabel(ctx,text,px,py,r,alpha,selected=false){
+  if(!showLabels && !selected) return;
+  const lx=px+r+8, ly=py;
+  ctx.globalAlpha=Math.min(alpha, selected?0.9:0.45);
+  ctx.font=selected?'11px Share Tech Mono':'9px Share Tech Mono';
+  ctx.fillStyle=selected?'rgba(180,220,255,1)':'rgba(200,220,255,0.8)';
+  ctx.fillText(text,lx,ly+3);
+  if(selected){
+    ctx.beginPath();
+    ctx.moveTo(px+r*1.1,py);ctx.lineTo(lx-3,ly);
+    ctx.strokeStyle='rgba(180,220,255,0.3)';
+    ctx.lineWidth=0.5;ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+}
+ 
+// ═══════════════════════════════════════════════════════
+// MAIN RENDER
+// ═══════════════════════════════════════════════════════
+let lastFps=performance.now();
+ 
+function render(){
+  requestAnimationFrame(render);
+  frame++;
+  const now=performance.now();
+  const dt=Math.min((now-lastFps)/1000,0.05);
+  lastFps=now;
+ 
+  // Update sim time
+  simTime += simSpeed * dt * 2;
+ 
+  // Smooth zoom
+  zoom += (targetZoom-zoom)*0.08;
+ 
+  // Update tilt (mouse smoothing happens in mousemove)
+  const tx=tilt.x, ty=tilt.y;
+ 
+  ctxM.clearRect(0,0,W,H);
+ 
+  // Collect all objects to depth-sort
+  const objects=[];
+ 
+  // Sun position (always at center)
+  const sunP=project(0,0,0,tx,ty);
+  const sunSX=cx+sunP.sx*zoom, sunSY=cy+sunP.sy*zoom;
+  objects.push({type:'sun',sx:sunSX,sy:sunSY,depth:sunP.depth,r:SUN.size*zoom});
+ 
+  // Planet positions
+  PLANETS.forEach((pl,i)=>{
+    const angle=pl.startAngle + (simTime/pl.period)*Math.PI*2*0.01;
+    const x3=Math.cos(angle)*pl.orbitR;
+    const z3=Math.sin(angle)*pl.orbitR;
+    const p=project(x3,0,z3,tx,ty);
+    const sx=cx+p.sx*zoom, sy=cy+p.sy*zoom;
+    const r=pl.size*zoom;
+    const rot=(simTime/pl.rotPeriod)*Math.PI*2*0.1;
+ 
+    objects.push({type:'planet',pl,sx,sy,depth:p.depth,r,rot,angle,x3,z3});
+ 
+    // Moon
+    if(pl.moon){
+      const ma=pl.moon.startAngle+(simTime/pl.moon.period)*Math.PI*2*0.01;
+      const mx3=x3+Math.cos(ma)*pl.moon.orbitR;
+      const mz3=z3+Math.sin(ma)*pl.moon.orbitR;
+      const mp=project(mx3,0,mz3,tx,ty);
+      objects.push({
+        type:'moon',moon:pl.moon,planet:pl,
+        sx:cx+mp.sx*zoom,sy:cy+mp.sy*zoom,
+        depth:mp.depth,r:pl.moon.size*zoom,
+        parentSX:sx,parentSY:sy
+      });
+    }
+  });
+ 
+  // Sort by depth (back to front)
+  objects.sort((a,b)=>b.depth-a.depth);
+ 
+  // Draw orbits first (behind everything)
+  PLANETS.forEach(pl=>{
+    const sel=selectedPlanet&&selectedPlanet.name===pl.name;
+    const alpha=sel?1:(zoom>0.8?1:zoom);
+    drawOrbit(ctxM,pl.orbitR*zoom,tx,ty,alpha,sel);
+    // Moon orbit
+    if(pl.moon && (sel||zoom>1.2)){
+      const angle=pl.startAngle+(simTime/pl.period)*Math.PI*2*0.01;
+      const x3=Math.cos(angle)*pl.orbitR;
+      const z3=Math.sin(angle)*pl.orbitR;
+      // Draw small moon orbit around planet
+      const steps=60;
+      ctxM.beginPath();
+      for(let i=0;i<=steps;i++){
+        const a=(i/steps)*Math.PI*2;
+        const mx=x3+Math.cos(a)*pl.moon.orbitR;
+        const mz=z3+Math.sin(a)*pl.moon.orbitR;
+        const mp=project(mx,0,mz,tx,ty);
+        const sx=cx+mp.sx*zoom, sy=cy+mp.sy*zoom;
+        if(i===0)ctxM.moveTo(sx,sy);else ctxM.lineTo(sx,sy);
+      }
+      ctxM.strokeStyle='rgba(255,255,255,0.07)';
+      ctxM.lineWidth=0.5;ctxM.stroke();
+    }
+  });
+ 
+  // Hover detection
+  hoveredPlanet=null;
+  objects.forEach(obj=>{
+    if(obj.type==='planet'||obj.type==='moon'){
+      const dist=Math.sqrt((mouse.x-obj.sx)**2+(mouse.y-obj.sy)**2);
+      if(dist<Math.max(obj.r+6,12)) hoveredPlanet=obj.type==='planet'?obj.pl:obj.moon;
+    }
+  });
+ 
+  // Update cursor style
+  const cur=document.getElementById('cursor');
+  if(hoveredPlanet){
+    cur.style.width='30px';cur.style.height='30px';
+    cur.style.borderColor='rgba(180,220,255,0.7)';
+  } else {
+    cur.style.width='20px';cur.style.height='20px';
+    cur.style.borderColor='rgba(180,220,255,0.5)';
+  }
+ 
+  // Draw all objects
+  objects.forEach(obj=>{
+    if(obj.type==='sun'){
+      drawSun(ctxM,obj.sx,obj.sy,obj.r,simTime);
+ 
+    } else if(obj.type==='planet'){
+      const pl=obj.pl;
+      const sel=selectedPlanet&&selectedPlanet.name===pl.name;
+      const hov=hoveredPlanet&&hoveredPlanet.name===pl.name;
+      const baseAlpha=hov||sel?1:0.95;
+ 
+      // Selection ring
+      if(sel||hov){
+        ctxM.beginPath();ctxM.arc(obj.sx,obj.sy,obj.r+5,0,Math.PI*2);
+        ctxM.strokeStyle=sel?'rgba(180,220,255,0.5)':'rgba(180,220,255,0.25)';
+        ctxM.lineWidth=1;ctxM.stroke();
+      }
+ 
+      // Rings (back half)
+      if(pl.rings){
+        ctxM.save();
+        ctxM.globalAlpha=0.7*baseAlpha;
+        drawRings(ctxM,obj.sx,obj.sy,obj.r,pl.rings,tx,ty,baseAlpha);
+        ctxM.restore();
+      }
+ 
+      // Planet body
+      if(pl.drawFn==='earth'){
+        drawEarth(ctxM,obj.sx,obj.sy,obj.r,obj.rot,baseAlpha);
+      } else if(pl.drawFn==='rocky'){
+        drawRocky(ctxM,obj.sx,obj.sy,obj.r,pl.color,pl.color2,obj.rot,baseAlpha);
+      } else if(pl.drawFn==='jupiter'){
+        drawGeneric(ctxM,obj.sx,obj.sy,obj.r,pl.color,pl.color2,obj.rot,baseAlpha,true);
+        // Great red spot
+        ctxM.globalAlpha=baseAlpha*0.8;
+        ctxM.beginPath();
+        ctxM.ellipse(obj.sx+Math.cos(obj.rot)*obj.r*0.3,obj.sy+obj.r*0.15,obj.r*0.18,obj.r*0.11,obj.rot*0.2,0,Math.PI*2);
+        ctxM.fillStyle='#a84030';ctxM.fill();
+        ctxM.globalAlpha=1;
+      } else if(pl.drawFn==='venus'){
+        drawGeneric(ctxM,obj.sx,obj.sy,obj.r,pl.color,pl.color2,obj.rot,baseAlpha,false);
+        // Thick atmosphere
+        const ag=ctxM.createRadialGradient(obj.sx,obj.sy,obj.r*0.85,obj.sx,obj.sy,obj.r*1.3);
+        ag.addColorStop(0,'rgba(220,180,60,0.3)');
+        ag.addColorStop(1,'rgba(200,150,40,0)');
+        ctxM.beginPath();ctxM.arc(obj.sx,obj.sy,obj.r*1.3,0,Math.PI*2);
+        ctxM.fillStyle=ag;ctxM.fill();
+      } else {
+        drawGeneric(ctxM,obj.sx,obj.sy,obj.r,pl.color,pl.color2,obj.rot,baseAlpha,false);
+        // Atmosphere
+        if(pl.atmosphere){
+          const ag=ctxM.createRadialGradient(obj.sx,obj.sy,obj.r*0.85,obj.sx,obj.sy,obj.r*1.25);
+          ag.addColorStop(0,pl.atmosphere);
+          ag.addColorStop(1,'rgba(0,0,0,0)');
+          ctxM.beginPath();ctxM.arc(obj.sx,obj.sy,obj.r*1.25,0,Math.PI*2);
+          ctxM.fillStyle=ag;ctxM.fill();
+        }
+      }
+ 
+      // Label
+      drawLabel(ctxM,pl.name,obj.sx,obj.sy,obj.r,baseAlpha,sel);
+ 
+    } else if(obj.type==='moon'){
+      const m=obj.moon;
+      drawRocky(ctxM,obj.sx,obj.sy,obj.r,m.color,m.color2,simTime*2,0.9);
+      if(zoom>1.0){
+        drawLabel(ctxM,m.name,obj.sx,obj.sy,obj.r,0.6,false);
+      }
+    }
+  });
+ 
+  // Tooltip
+  const tip=document.getElementById('tooltip');
+  const hov=hoveredPlanet||selectedPlanet;
+  if(hov){
+    tip.style.opacity='1';
+    tip.style.left=mouse.x+'px';
+    tip.style.top=mouse.y+'px';
+    document.getElementById('tip-name').textContent=hov.name||hov.nameEn||'';
+    document.getElementById('tip-detail').textContent=hov.detail||hov.orbitR+'M km';
+  } else {
+    if(!selectedPlanet) tip.style.opacity='0';
+  }
+ 
+  // Update sim date display
+  const simYear=2025+simTime*0.5;
+  const y=Math.floor(simYear);
+  const d=Math.floor((simYear-y)*365.25);
+  document.getElementById('sim-date').textContent=`${y}.${String(d).padStart(3,'0')}`;
+}
+ 
+render();
+</script>
+</body>
+</html>
