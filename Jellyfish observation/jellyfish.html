@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html class="no-js">
+  <head>
+    <meta charset="utf-8">
+    <title>Medusae</title>
+
+    <link rel="stylesheet" href="./build/static/css/style.css" />
+    
+  </head>
+  <body>
+    <article id="info" class="modal info-modal">
+      <h1>Medusae</h1>
+    </article>
+
+    <div id="cover-info" class="modal-cover"></div>
+
+    <div id="container-controls" style="visibility: hidden;" >
+      <div id="toggle-info" class="controls-button">
+        <div class="label">About</div>
+      </div>
+      <div id="toggle-dots" class="controls-button">
+        <div class="label">Particles</div>
+      </div>
+      <div id="menu-colors" class="controls-menu"></div>
+      <div id="toggle-colors" class="controls-button">
+        <div class="label">Colors</div>
+      </div>
+      <div id="toggle-audio" class="controls-button">
+        <div class="label">Audio</div>
+      </div>
+      <div id="toggle-postfx" class="controls-button">
+        <div class="label">Post FX</div>
+      </div>
+      <div id="toggle-sim" class="controls-button">
+        <div class="label">Run Sim</div>
+      </div>
+    </div>
+
+    <div id="container-stats" class="stats-panel">
+      <div id="container-graphs"></div>
+      <dl>
+        <dt>Particles</dt>
+        <dd id="particle-count"></dd>
+      </dl>
+      <dl>
+        <dt>Constraints</dt>
+        <dd id="constraint-count"></dd>
+      </dl>
+      <dl>
+        <dt>Forces</dt>
+        <dd id="force-count"></dd>
+      </dl>
+    </div>
+
+    <div id="container"></div>
+
+    
+      <script src="./build/static/js/three.min.js"></script>
+      <script src="./build/static/js/app.min.js"></script>
+    
+    <script>
+      App.STATIC_URL = "./build/static/";
+    </script>
+  </body>
+</html>
