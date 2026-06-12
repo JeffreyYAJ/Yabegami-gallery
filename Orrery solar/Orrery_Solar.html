@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orrery — Système Solaire</title>
+<link rel="stylesheet" href="Orrery_Solar.css">
+
+</head>
+<body>
+ 
+<canvas id="cv-stars"></canvas>
+<canvas id="cv-main"></canvas>
+ 
+<div id="cursor"></div>
+ 
+<div id="info">
+  <h1>Orrery Interactif</h1>
+  <div class="subtitle">Système Solaire</div>
+</div>
+ 
+<div id="date-display">
+  <div class="year" id="sim-date">2025.001</div>
+</div>
+ 
+<div id="tooltip">
+  <div class="line"></div>
+  <div class="name" id="tip-name">Terre</div>
+  <div class="detail" id="tip-detail"></div>
+</div>
+ 
+<div id="hint">DÉPLACEZ LA SOURIS · SCROLL POUR ZOOMER · CLIC POUR SÉLECTIONNER</div>
+ 
+<div id="speed-ctrl">
+  <label>VITESSE DE SIMULATION</label>
+  <input type="range" id="sl-speed" min="0" max="100" value="30">
+  <button id="toggle-labels" onclick="toggleLabels()">ÉTIQUETTES</button>
+</div>
+ 
+<script src="Orrery_Solar.js"></script>
+
+</body>
+</html>
