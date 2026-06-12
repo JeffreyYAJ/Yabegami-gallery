@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fireflies in the Woods (Perlin Noise) with Menu</title>
+    
+</head>
+<body>
+
+    <canvas id="firefliesCanvas"></canvas>
+    <div class="vignette"></div>
+
+    <div id="settings-container">
+        <button id="settings-button">⚙</button>
+        
+        <div id="settings-panel">
+            <div class="panel-header">Couleur des lucioles</div>
+            <div class="color-options">
+                <button class="color-btn active" data-color="original" title="Original (Jaune/Vert)"></button>
+                <button class="color-btn" data-color="cyan" title="Cyan Magique"></button>
+                <button class="color-btn" data-color="blue" title="Bleu Forêt"></button>
+                <button class="color-btn" data-color="magenta" title="Magenta Fée"></button>
+            </div>
+        </div>
+    </div>
+
+<script src="fireflies.js"></script>    
+</body>
+</html>
