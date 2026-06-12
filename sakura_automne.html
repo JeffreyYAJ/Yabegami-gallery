@@ -619,7 +619,7 @@ let frame = 0;
 let lastTime = performance.now();
 let fps = 60;
 
-function updateWind() {
+function stepWind() {
   windTimer++;
   if(windTimer > windChangeDuration) {
     windTimer = 0;
@@ -717,7 +717,7 @@ function loop(now) {
   }
 
   // Update wind
-  updateWind();
+  stepWind();
   if(frame % 30 === 0) updateWindUI();
 
   // Maintain petal count
