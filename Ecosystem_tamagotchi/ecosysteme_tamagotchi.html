@@ -3,93 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🌊 Écosystème de Bureau — Pixel Aquarium</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-  * { margin:0; padding:0; box-sizing:border-box; image-rendering:pixelated; }
-  body {
-    background:#0a0a1a;
-    font-family:'Press Start 2P', monospace;
-    overflow:hidden;
-    width:100vw; height:100vh;
-    display:flex; flex-direction:column;
-  }
-  #topbar {
-    background:#111122;
-    border-bottom:2px solid #00ffcc44;
-    padding:6px 14px;
-    display:flex; align-items:center; gap:16px;
-    flex-shrink:0;
-  }
-  #topbar .title { color:#00ffcc; font-size:7px; letter-spacing:1px; }
-  .stat-pill {
-    background:#0d0d22;
-    border:1px solid #00ffcc33;
-    border-radius:3px;
-    padding:3px 8px;
-    color:#88ffdd;
-    font-size:6px;
-    display:flex; align-items:center; gap:5px;
-  }
-  .stat-pill .val { color:#00ffcc; }
-  .stat-pill.hot .val { color:#ff6644; }
-  .stat-pill.warn .val { color:#ffaa00; }
-  #canvas-wrap {
-    flex:1;
-    position:relative;
-    overflow:hidden;
-  }
-  canvas#world { display:block; width:100%; height:100%; }
-  #tooltip {
-    position:absolute;
-    background:#111122ee;
-    border:1px solid #00ffcc66;
-    color:#ccffee;
-    font-size:6px;
-    padding:6px 8px;
-    border-radius:2px;
-    pointer-events:none;
-    display:none;
-    line-height:1.8;
-    max-width:160px;
-  }
-  #bottombar {
-    background:#111122;
-    border-top:2px solid #00ffcc44;
-    padding:5px 14px;
-    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-    flex-shrink:0;
-  }
-  .legend { color:#556677; font-size:5px; letter-spacing:1px; }
-  .creature-btn {
-    background:#0d1a2a;
-    border:1px solid #334455;
-    color:#88aacc;
-    font-size:5px;
-    padding:3px 8px;
-    cursor:pointer;
-    border-radius:2px;
-    transition:all 0.1s;
-  }
-  .creature-btn:hover { border-color:#00ffcc; color:#00ffcc; }
-  #heat-bar {
-    margin-left:auto;
-    display:flex; align-items:center; gap:6px;
-    font-size:5px; color:#556677;
-  }
-  .hbar { width:80px; height:6px; background:#1a1a2a; border:1px solid #334455; border-radius:1px; overflow:hidden; }
-  .hbar-fill { height:100%; background:#00ffcc; transition:width 0.5s, background 0.5s; }
-  #sim-speed {
-    background:#0d1a2a; border:1px solid #334455; color:#88aacc;
-    font-size:5px; padding:3px 7px; cursor:pointer; border-radius:2px;
-  }
-  #mood-indicator { font-size:7px; }
-</style>
+<title>Écosystème de Bureau — Pixel Aquarium</title>
+<link rel="stylesheet" href="ecosysteme_tamagotchi.css">
 </head>
 <body>
 
 <div id="topbar">
-  <span class="title">🌊 PIXEL AQUARIUM v1.0</span>
+  <span class="title">PIXEL AQUARIUM v1.0</span>
   <div class="stat-pill" id="stat-cpu"><span>CPU</span><span class="val" id="val-cpu">--</span></div>
   <div class="stat-pill" id="stat-temp"><span>TEMP</span><span class="val" id="val-temp">--°C</span></div>
   <div class="stat-pill"><span>POP</span><span class="val" id="val-pop">0</span></div>
@@ -117,9 +37,7 @@
 </div>
 
 <script>
-// ═══════════════════════════════════════════════
-// PIXEL ART RENDERER — 8x8 sprite system
-// ═══════════════════════════════════════════════
+
 const canvas = document.getElementById('world');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
