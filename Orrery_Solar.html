@@ -525,7 +525,7 @@ function drawRocky(ctx,px,py,r,c1,c2,rot,alpha=1){
   ctx.save();
   ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.clip();
   ctx.fillStyle='rgba(0,0,0,0.2)';
-  [[0.3,0.2,0.15],[−0.4,0.1,0.1],[0.1,−0.3,0.12],[−0.2,−0.2,0.08]].forEach(([dx,dy,cr])=>{
+  [[0.3,0.2,0.15],[-0.4,0.1,0.1],[0.1,-0.3,0.12],[-0.2,-0.2,0.08]].forEach(([dx,dy,cr])=>{
     const cdx=dx*r+Math.cos(rot)*r*0.3;
     const cdy=dy*r;
     ctx.beginPath();ctx.arc(px+cdx,py+cdy,cr*r,0,Math.PI*2);ctx.fill();
