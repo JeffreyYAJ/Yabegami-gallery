@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌸 Sakura & Feuilles d'Automne</title>
+<link rel="stylesheet" href="sakura_automne.css">
+
+</head>
+<body>
+
+<div id="bg-layer"></div>
+<canvas id="c"></canvas>
+
+<div id="title-overlay">
+  <div class="main-title" id="title-text">SAKURA</div>
+  <div class="jp-title" id="title-jp">桜　散る</div>
+</div>
+
+<div id="mouse-hint">✦ DÉPLACEZ LA SOURIS POUR GUIDER LE VENT</div>
+
+<button id="panel-toggle" onclick="togglePanel()">RÉGLAGES</button>
+
+<div id="panel">
+  <div class="panel-head">
+    <h1>Pétales</h1>
+    <div class="subtitle">Vent procédural</div>
+  </div>
+  <div class="panel-body">
+
+    <!-- Mode -->
+    <div class="ctrl-group">
+      <label>Mode</label>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="btn-sakura" onclick="setMode('sakura')">🌸 Sakura</button>
+        <button class="mode-btn" id="btn-autumn" onclick="setMode('autumn')">🍂 Automne</button>
+      </div>
+    </div>
+
+    <!-- Wind indicator -->
+    <div class="ctrl-group">
+      <label>Vent actuel</label>
+      <div id="wind-viz">
+        <div id="wind-arrow">🌸</div>
+        <div id="wind-label">CALME</div>
+      </div>
+    </div>
+
+    <!-- Density -->
+    <div class="ctrl-group">
+      <label>Densité</label>
+      <div class="slider-wrap">
+        <input type="range" id="sl-density" min="20" max="300" value="120" oninput="updateDensity(this.value)">
+        <span class="slider-val" id="val-density">120</span>
+      </div>
+    </div>
+
+    <!-- Wind strength -->
+    <div class="ctrl-group">
+      <label>Force du vent</label>
+      <div class="slider-wrap">
+        <input type="range" id="sl-wind" min="0" max="100" value="40" oninput="updateWind(this.value)">
+        <span class="slider-val" id="val-wind">40</span>
+      </div>
+    </div>
+
+    <!-- Fall speed -->
+    <div class="ctrl-group">
+      <label>Vitesse de chute</label>
+      <div class="slider-wrap">
+        <input type="range" id="sl-speed" min="20" max="100" value="50" oninput="updateSpeed(this.value)">
+        <span class="slider-val" id="val-speed">50</span>
+      </div>
+    </div>
+
+    <!-- Opacity -->
+    <div class="ctrl-group">
+      <label>Opacité fond</label>
+      <div class="slider-wrap">
+        <input type="range" id="sl-opacity" min="0" max="100" value="85" oninput="updateBgOpacity(this.value)">
+        <span class="slider-val" id="val-opacity">85%</span>
+      </div>
+    </div>
+
+    <!-- Gust -->
+    <div class="ctrl-group">
+      <button id="gust-btn" onclick="triggerGust()">💨 RAFALE DE VENT</button>
+    </div>
+
+    <!-- Background -->
+    <div class="ctrl-group">
+      <label>Fond personnalisé</label>
+      <div id="bg-upload-area">
+        <div class="upload-icon">🖼</div>
+        <p>Glissez une image<br>ou cliquez pour choisir</p>
+        <input type="file" accept="image/*" onchange="loadBg(event)">
+        <img id="bg-thumb" alt="fond">
+      </div>
+      <button id="bg-clear" onclick="clearBg()">✕ SUPPRIMER L'IMAGE</button>
+    </div>
+
+    <!-- Preset backgrounds -->
+    <div class="ctrl-group">
+      <label>Fonds prédéfinis</label>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPresetBg('night-forest')">🌲 Forêt nuit</button>
+        <button class="preset-btn" onclick="setPresetBg('temple')">⛩ Temple</button>
+        <button class="preset-btn" onclick="setPresetBg('mountain')">🏔 Montagne</button>
+        <button class="preset-btn" onclick="setPresetBg('minimal')">◻ Minimal</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="ctrl-group">
+      <label>Stats</label>
+      <div class="stats-row"><span>Pétales actifs</span><span id="stat-count">0</span></div>
+      <div style="margin-top:5px"></div>
+      <div class="stats-row"><span>FPS</span><span id="stat-fps">60</span></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="sakura_automne.js"></script>
+</body>
+</html>
