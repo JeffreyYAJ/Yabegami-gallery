@@ -1,4 +1,4 @@
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400&family=Zen+Kaku+Gothic+New:wght@300&display=swap');
+  @import url('gfonts/fonts.css');
 
   :root {
     --mode-sakura: 1;
