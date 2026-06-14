@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple System — PC Specification</title>
+    <link rel="stylesheet" href="style/main.css">
+    <style>
+        #charts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 12px;
+            width: 100vw;
+            height: 100vh;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .chart-cell {
+            position: relative;
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 8px;
+            padding: 8px;
+        }
+        .chart-cell canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="charts">
+        <div class="chart-cell"><canvas id="cpuChart"></canvas></div>
+        <div class="chart-cell"><canvas id="gpuChart"></canvas></div>
+        <div class="chart-cell"><canvas id="netChart"></canvas></div>
+        <div class="chart-cell"><canvas id="ramChart"></canvas></div>
+    </div>
+
+    <script src="js/moment.min.js"></script>
+    <script src="js/chart.js"></script>
+    <script src="js/chartjs-plugin-streaming.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
