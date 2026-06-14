@@ -1,0 +1,155 @@
+{
+  "wallpapers": [
+    {
+      "id": "blackhole",
+      "title": "Black Hole",
+      "type": "web",
+      "path": "Blackhole",
+      "entry": "index.html"
+    },
+    {
+      "id": "ecosystem-tamagotchi",
+      "title": "Ecosystem Tamagotchi",
+      "type": "web",
+      "path": "Ecosystem_tamagotchi",
+      "entry": "index.html"
+    },
+    {
+      "id": "fireflies",
+      "title": "Fireflies",
+      "type": "web",
+      "path": "Fireflies",
+      "entry": "index.html"
+    },
+    {
+      "id": "fluid",
+      "title": "Fluids",
+      "type": "web",
+      "path": "Fluid",
+      "entry": "index.html",
+      "thumbnail": "Fluid/fluid.jpg"
+    },
+    {
+      "id": "hills",
+      "title": "The Hill",
+      "type": "web",
+      "path": "Hills",
+      "entry": "index.html",
+      "thumbnail": "Hills/lively_t.jpg"
+    },
+    {
+      "id": "human-clock",
+      "title": "Human Clock",
+      "type": "web",
+      "path": "Human clock",
+      "entry": "index.html"
+    },
+    {
+      "id": "jellyfish",
+      "title": "Medusae",
+      "type": "web",
+      "path": "Jellyfish observation",
+      "entry": "index.html",
+      "thumbnail": "Jellyfish observation/lively_t.jpg"
+    },
+    {
+      "id": "linux-c-matrix",
+      "title": "Linux C Matrix",
+      "type": "web",
+      "path": "Linux c matrix",
+      "entry": "index.html",
+      "thumbnail": "Linux c matrix/thumbnail.jpg"
+    },
+    {
+      "id": "matrix",
+      "title": "Cyberpunk Matrix",
+      "type": "web",
+      "path": "Matrix",
+      "entry": "index.html"
+    },
+    {
+      "id": "orrery-solar",
+      "title": "Orrery — Solar System",
+      "type": "web",
+      "path": "Orrery solar",
+      "entry": "index.html"
+    },
+    {
+      "id": "parallax-landscape",
+      "title": "Parallax.js",
+      "type": "web",
+      "path": "Parallax landscape",
+      "entry": "index.html",
+      "thumbnail": "Parallax landscape/lively_t.jpg"
+    },
+    {
+      "id": "pc-specification",
+      "title": "Simple System",
+      "type": "web",
+      "path": "pc specification",
+      "entry": "index.html"
+    },
+    {
+      "id": "periodic-table",
+      "title": "Periodic Table",
+      "type": "web",
+      "path": "Periodic table",
+      "entry": "index.html",
+      "thumbnail": "Periodic table/lively_t.jpg"
+    },
+    {
+      "id": "rain",
+      "title": "Rain",
+      "type": "web",
+      "path": "Rain",
+      "entry": "index.html",
+      "thumbnail": "Rain/thumbnail.jpg"
+    },
+    {
+      "id": "sakura-autumn",
+      "title": "Sakura & Autumn",
+      "type": "web",
+      "path": "Sakura Autumn",
+      "entry": "index.html"
+    },
+    {
+      "id": "sand-clock",
+      "title": "Sand Clock",
+      "type": "web",
+      "path": "Sand clock",
+      "entry": "index.html"
+    },
+    {
+      "id": "ripples",
+      "title": "Ripples",
+      "type": "web",
+      "path": "Time and meteo shower",
+      "entry": "index.html",
+      "thumbnail": "Time and meteo shower/lively_t.jpg"
+    },
+    {
+      "id": "triangle-highlight",
+      "title": "Triangles & Light",
+      "type": "web",
+      "path": "Triangle highlight",
+      "entry": "index.html",
+      "thumbnail": "Triangle highlight/lively_t.jpg"
+    },
+    {
+      "id": "waves",
+      "title": "Waves",
+      "type": "web",
+      "path": "Waves",
+      "entry": "index.html",
+      "thumbnail": "Waves/lively_t.jpg"
+    },
+    {
+      "id": "music-tv",
+      "title": "Music TV (LQ)",
+      "type": "web",
+      "path": "zmijuhra.1n3",
+      "entry": "index.html",
+      "thumbnail": "zmijuhra.1n3/5hhxt0u4.jpg"
+    }
+  ]
+}
